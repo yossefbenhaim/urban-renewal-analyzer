@@ -1,0 +1,40 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: ura-api
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    networks:
+      - ura
+      - coolify
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: ura-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.ura.rule=Host(`urban-renewal-analyzer.byclick.co.il`)
+      - traefik.http.routers.ura.entrypoints=https
+      - traefik.http.routers.ura.tls=true
+      - traefik.http.routers.ura.tls.certresolver=letsencrypt
+      - traefik.http.services.ura.loadbalancer.server.port=80
+      - traefik.docker.network=coolify
+    networks:
+      - ura
+      - coolify
+
+networks:
+  ura:
+    driver: bridge
+  coolify:
+    external: true
+    name: coolify
