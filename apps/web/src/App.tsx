@@ -80,7 +80,7 @@ export function App() {
                 <button
                   type="submit"
                   disabled={busy || !addr.city || !addr.street || !addr.building_number}
-                  className="inline-flex items-center justify-center gap-2 bg-sc-primary text-white font-extrabold text-[15px] px-5 py-2.5 rounded-sc-btn shadow-[0_2px_8px_rgba(59,107,156,0.2)] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center justify-center gap-2 bg-sc-primary text-white font-extrabold text-[15px] leading-none px-5 py-3 rounded-sc-btn shadow-[0_2px_8px_rgba(59,107,156,0.2)] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Wand2 size={16} /> הערך עכשיו
                 </button>
@@ -124,7 +124,7 @@ function Header({ onReset }: { onReset?: () => void }) {
             <button
               type="button"
               onClick={onReset}
-              className="inline-flex items-center gap-1.5 bg-white text-sc-navy text-[13px] font-extrabold px-3.5 py-2 rounded-sc-pill shadow-sm hover:bg-white/95 transition-colors"
+              className="inline-flex items-center gap-1.5 bg-white text-sc-navy text-[13px] font-extrabold leading-none px-3.5 py-2.5 rounded-sc-pill shadow-sm hover:bg-white/95 transition-colors"
             >
               <Plus size={14} strokeWidth={3} /> להערכה חדשה
             </button>
@@ -134,7 +134,7 @@ function Header({ onReset }: { onReset?: () => void }) {
             target="_blank"
             rel="noopener noreferrer"
             title="Silver Castle — מערכת ניהול הפרויקט"
-            className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white text-[13px] font-extrabold ps-2.5 pe-3 py-2 rounded-sc-pill border border-white/30 transition-colors"
+            className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white text-[13px] font-extrabold leading-none ps-2.5 pe-3 py-2.5 rounded-sc-pill border border-white/30 transition-colors"
           >
             <Building2 size={14} strokeWidth={2.5} />
             <span className="hidden sm:inline">Silver Castle</span>
@@ -149,7 +149,7 @@ function Header({ onReset }: { onReset?: () => void }) {
 function Hero() {
   return (
     <section className="text-center sm:text-start">
-      <div className="inline-flex items-center gap-1.5 bg-sc-light-blue text-sc-primary text-[12px] font-bold uppercase tracking-wider px-3 py-0.5 rounded-sc-pill mb-2">
+      <div className="inline-flex items-center gap-1.5 bg-sc-light-blue text-sc-primary text-[12px] font-bold uppercase tracking-wider leading-none px-3 py-1.5 rounded-sc-pill mb-2">
         <Sparkles size={13} /> חינמי
       </div>
       <h1 className="text-[22px] sm:text-[28px] font-extrabold text-sc-text leading-tight mb-1.5">
@@ -357,7 +357,7 @@ function ExportBar({ data }: { data: EvaluateResponse }) {
         type="button"
         onClick={downloadPdf}
         disabled={busy}
-        className="inline-flex items-center gap-1.5 bg-sc-primary text-white text-[14px] font-bold px-4 py-2.5 rounded-sc-btn shadow-[0_2px_8px_rgba(59,107,156,0.2)] hover:opacity-90 disabled:opacity-50 transition-opacity"
+        className="inline-flex items-center gap-1.5 bg-sc-primary text-white text-[14px] font-bold leading-none px-4 py-3 rounded-sc-btn shadow-[0_2px_8px_rgba(59,107,156,0.2)] hover:opacity-90 disabled:opacity-50 transition-opacity"
       >
         {busy ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
         {busy ? 'מכין PDF…' : 'הורד כ-PDF'}
@@ -419,7 +419,7 @@ function CategoryRow({ c }: { c: Category }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <div className="font-extrabold text-sc-text text-[15px]">{c.title}</div>
-          <span className={`text-[12px] font-bold px-2 py-0.5 rounded-sc-pill ${subscoreCls}`}>
+          <span className={`inline-flex items-center text-[12px] font-bold px-2 py-1 leading-none rounded-sc-pill ${subscoreCls}`}>
             {c.subscore}/100
           </span>
           <span className="text-[11px] text-sc-text-muted">
@@ -471,7 +471,7 @@ function SourceBreakdown({ contributions }: { contributions: SourceContribution[
                 <span className="font-extrabold text-sc-text inline-flex items-center gap-1.5">
                   {sourceLabel(s.name)}
                   {s.failed && (
-                    <span className="inline-flex items-center gap-1 text-[12px] font-bold px-2 py-0.5 rounded-sc-pill bg-sc-danger/15 text-sc-danger">
+                    <span className="inline-flex items-center gap-1 text-[12px] font-bold leading-none px-2 py-1 rounded-sc-pill bg-sc-danger/15 text-sc-danger">
                       לא הגיב
                     </span>
                   )}
@@ -538,7 +538,7 @@ function SourcesFooter({ sources, disclaimer }: { sources: SourceResult[]; discl
           <span
             key={s.name}
             className={
-              'inline-flex items-center gap-1.5 text-[13px] font-bold px-2.5 py-1 rounded-sc-pill ' +
+              'inline-flex items-center gap-1.5 text-[13px] font-bold leading-none px-2.5 py-1.5 rounded-sc-pill ' +
               (s.status === 'success'
                 ? 'bg-sc-success/15 text-sc-success'
                 : s.status === 'partial'
@@ -560,9 +560,9 @@ function SourcesFooter({ sources, disclaimer }: { sources: SourceResult[]; discl
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className={'text-center rounded-sc-input p-2.5 ' + (accent ? 'bg-sc-light-blue' : 'bg-sc-bg')}>
-      <div className="text-[12px] text-sc-text-muted">{label}</div>
-      <div className={'text-[15px] font-extrabold ' + (accent ? 'text-sc-primary' : 'text-sc-text')}>{value}</div>
+    <div className={'text-center rounded-sc-input p-2.5 flex flex-col items-center justify-center gap-1 ' + (accent ? 'bg-sc-light-blue' : 'bg-sc-bg')}>
+      <div className="text-[12px] leading-none text-sc-text-muted">{label}</div>
+      <div className={'text-[15px] font-extrabold leading-none ' + (accent ? 'text-sc-primary' : 'text-sc-text')}>{value}</div>
     </div>
   )
 }
