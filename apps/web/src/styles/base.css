@@ -29,3 +29,19 @@ body {
   font-feature-settings: "tnum" 1, "lnum" 1;
   -webkit-font-smoothing: antialiased;
 }
+
+/* ── Print styles — used by the PDF export ("הורד PDF" → window.print).
+ *    Hide chrome (header, exports, footer) and let the report flow on the page.
+ *    Force backgrounds to print so the score banner gradient survives. */
+@media print {
+  .no-print { display: none !important; }
+  body { background: white !important; }
+  #report-root { margin-top: 0 !important; }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  a { color: inherit !important; text-decoration: none !important; }
+  /* Avoid page breaks inside cards where possible */
+  .bg-white, .rounded-sc-card { page-break-inside: avoid; break-inside: avoid; }
+}

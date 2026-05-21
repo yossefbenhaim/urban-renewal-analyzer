@@ -75,7 +75,7 @@ function PickerField({
 
   return (
     <div>
-      <label className="block text-[12px] font-semibold text-sc-text-secondary mb-1.5">{label}</label>
+      <label className="block text-[14px] font-semibold text-sc-text-secondary mb-1.5">{label}</label>
       <div ref={ref} className="relative">
         <input
           dir="rtl"
@@ -87,7 +87,7 @@ function PickerField({
           placeholder={disabled ? (disabledPlaceholder ?? placeholder) : placeholder}
           autoComplete="off"
           className={
-            `w-full bg-white border rounded-sc-input ps-3 pe-9 py-2.5 text-[14px] outline-none ` +
+            `w-full bg-white border rounded-sc-input ps-3 pe-9 py-2.5 text-[15px] outline-none ` +
             `focus:ring-2 focus:ring-sc-primary/10 transition-colors ${borderCls} ` +
             (disabled ? 'bg-sc-bg text-sc-text-muted' : '')
           }
@@ -103,21 +103,21 @@ function PickerField({
         {(showHint || showLoading || showEmpty || showResults) && (
           <div className="absolute top-full inset-x-0 mt-1 bg-white border border-sc-border rounded-sc-input shadow-lg z-50 max-h-60 overflow-y-auto">
             {showHint && (
-              <div className="px-3 py-2 text-[12px] text-sc-text-muted">הקלד לפחות אות אחת</div>
+              <div className="px-3 py-2 text-[14px] text-sc-text-muted">הקלד לפחות אות אחת</div>
             )}
             {showLoading && (
-              <div className="px-3 py-2 text-[12px] text-sc-text-muted flex items-center gap-2">
+              <div className="px-3 py-2 text-[14px] text-sc-text-muted flex items-center gap-2">
                 <Spinner /> מחפש…
               </div>
             )}
             {showEmpty && (
-              <div className="px-3 py-2 text-[12px] text-sc-text-muted">לא נמצאו תוצאות</div>
+              <div className="px-3 py-2 text-[14px] text-sc-text-muted">לא נמצאו תוצאות</div>
             )}
             {showResults && results.map(r => (
               <div
                 key={r.code || r.name}
                 onPointerDown={e => { e.preventDefault(); onPick(r.name); setOpen(false) }}
-                className="px-3 py-2 text-[13px] cursor-pointer hover:bg-sc-light-blue border-b border-sc-border last:border-b-0"
+                className="px-3 py-2 text-[15px] cursor-pointer hover:bg-sc-light-blue border-b border-sc-border last:border-b-0"
               >
                 {r.name}
               </div>
@@ -279,7 +279,7 @@ export function AddressPicker({ value, onChange, disabled = false }: Props) {
         disabledPlaceholder="בחר עיר תחילה"
       />
       <div>
-        <label className="block text-[12px] font-semibold text-sc-text-secondary mb-1.5">מספר בית *</label>
+        <label className="block text-[14px] font-semibold text-sc-text-secondary mb-1.5">מספר בית *</label>
         <input
           dir="ltr"
           inputMode="numeric"
@@ -288,7 +288,7 @@ export function AddressPicker({ value, onChange, disabled = false }: Props) {
           placeholder={value.street ? 'מספר הבניין' : 'בחר רחוב תחילה'}
           disabled={disabled || !value.street}
           className={
-            `w-full bg-white border rounded-sc-input px-3 py-2.5 text-[14px] outline-none ` +
+            `w-full bg-white border rounded-sc-input px-3 py-2.5 text-[15px] outline-none ` +
             `focus:ring-2 focus:ring-sc-primary/10 transition-colors border-sc-border-strong ` +
             (disabled || !value.street ? 'bg-sc-bg text-sc-text-muted' : '')
           }
@@ -311,7 +311,7 @@ function ValidationStrip({
   if (status.kind === 'idle') return null
   if (status.kind === 'loading') {
     return (
-      <div className="bg-sc-bg border border-sc-border rounded-sc-input px-3 py-2 text-[12px] text-sc-text-muted flex items-center gap-2">
+      <div className="bg-sc-bg border border-sc-border rounded-sc-input px-3 py-2.5 text-[14px] text-sc-text-muted flex items-center gap-2">
         <Spinner />
         <span>מאמת מול GovMap…</span>
       </div>
@@ -319,50 +319,50 @@ function ValidationStrip({
   }
   if (status.kind === 'address') {
     return (
-      <div className="bg-sc-success-bg border border-sc-success/30 rounded-sc-input px-3 py-2 text-[12px] text-sc-success flex items-center justify-between gap-2 flex-wrap">
+      <div className="bg-sc-success-bg border border-sc-success/30 rounded-sc-input px-3 py-2.5 text-[14px] text-sc-success flex items-center justify-between gap-2 flex-wrap">
         <span className="inline-flex items-center gap-2">
-          <Check size={14} strokeWidth={3} />
+          <Check size={16} strokeWidth={3} />
           <span className="font-semibold">{status.formatted}</span>
-          <span className="text-[10px] font-bold uppercase tracking-wider bg-sc-success/15 px-1.5 py-0.5 rounded-sc-pill">אומת ב-GovMap</span>
+          <span className="text-[12px] font-bold uppercase tracking-wider bg-sc-success/15 px-2 py-0.5 rounded-sc-pill">אומת ב-GovMap</span>
         </span>
         <a
           href={status.viewUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-[11px] font-bold text-sc-success hover:underline"
+          className="inline-flex items-center gap-1 text-[13px] font-bold text-sc-success hover:underline"
         >
-          <ExternalLink size={11} /> צפה במפה
+          <ExternalLink size={12} /> צפה במפה
         </a>
       </div>
     )
   }
   if (status.kind === 'street') {
     return (
-      <div className="bg-sc-warning-bg border border-sc-warning/30 rounded-sc-input px-3 py-2 text-[12px] text-sc-warning flex items-start gap-2">
-        <AlertTriangle size={14} strokeWidth={2.5} className="mt-0.5 flex-shrink-0" />
+      <div className="bg-sc-warning-bg border border-sc-warning/30 rounded-sc-input px-3 py-2.5 text-[14px] text-sc-warning flex items-start gap-2">
+        <AlertTriangle size={16} strokeWidth={2.5} className="mt-0.5 flex-shrink-0" />
         <div>
           <span className="font-semibold">{status.formatted}</span>
           <span className="mr-1">— הרחוב קיים, אבל מספר הבית {fallback.number} לא נמצא ב-GovMap.</span>
-          <span className="block mt-0.5 text-[11px] opacity-90">תוכל להמשיך — ההערכה תתבצע על מרכז הרחוב, ייתכן ועם פחות דיוק.</span>
+          <span className="block mt-0.5 text-[13px] opacity-90">תוכל להמשיך — ההערכה תתבצע על מרכז הרחוב, ייתכן ועם פחות דיוק.</span>
         </div>
       </div>
     )
   }
   if (status.kind === 'not_found') {
     return (
-      <div className="bg-sc-danger/10 border border-sc-danger/30 rounded-sc-input px-3 py-2 text-[12px] text-sc-danger flex items-start gap-2">
-        <XIcon size={14} strokeWidth={2.5} className="mt-0.5 flex-shrink-0" />
+      <div className="bg-sc-danger/10 border border-sc-danger/30 rounded-sc-input px-3 py-2.5 text-[14px] text-sc-danger flex items-start gap-2">
+        <XIcon size={16} strokeWidth={2.5} className="mt-0.5 flex-shrink-0" />
         <div>
           <span className="font-semibold">הכתובת לא נמצאה ב-GovMap.</span>
-          <span className="block mt-0.5 text-[11px] opacity-90">בדוק שגיאות הקלדה במספר הבית.</span>
+          <span className="block mt-0.5 text-[13px] opacity-90">בדוק שגיאות הקלדה במספר הבית.</span>
         </div>
       </div>
     )
   }
   // error
   return (
-    <div className="bg-sc-bg border border-sc-border-strong rounded-sc-input px-3 py-2 text-[12px] text-sc-text-muted flex items-center gap-2">
-      <AlertTriangle size={13} />
+    <div className="bg-sc-bg border border-sc-border-strong rounded-sc-input px-3 py-2.5 text-[14px] text-sc-text-muted flex items-center gap-2">
+      <AlertTriangle size={15} />
       <span>תיקוף הכתובת לא זמין כרגע — תוכל להמשיך, נבדוק שוב בעת ההערכה.</span>
     </div>
   )

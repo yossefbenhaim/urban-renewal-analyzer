@@ -5,6 +5,7 @@ import { useState } from 'react'
 import {
   Building2, Sparkles, ArrowLeft, Loader2, Check, AlertTriangle, X,
   ShieldCheck, MapPin, Crown, Clock, Star, Wand2, ExternalLink,
+  Download, Mail, FileArchive, Plus,
 } from 'lucide-react'
 import { AddressPicker } from './features/address/AddressPicker'
 import { MaturityGauge } from './features/report/MaturityGauge'
@@ -23,6 +24,8 @@ export function App() {
   const [error, setError] = useState<string | null>(null)
   const [report, setReport] = useState<EvaluateResponse | null>(null)
 
+  const isResultMode = busy || report !== null
+
   async function onEvaluate(e: React.FormEvent) {
     e.preventDefault()
     if (!addr.city || !addr.street || !addr.building_number) return
@@ -30,8 +33,8 @@ export function App() {
     setError(null)
     setReport(null)
     const startedAt = Date.now()
-    // Wait at least MIN_LOADING_MS before revealing the result — the gauge
-    // animation needs time to play. Promise.all lets the API race the floor.
+    // Floor — keep the gauge animation visible for at least MIN_LOADING_MS
+    // even when the API/cache returns quickly.
     const floor = new Promise<void>(r => setTimeout(r, MIN_LOADING_MS))
     try {
       const res = await fetch('/api/evaluate', {
@@ -56,54 +59,75 @@ export function App() {
     }
   }
 
+  function reset() {
+    setAddr({ city: '', street: '', building_number: '' })
+    setBusy(false)
+    setError(null)
+    setReport(null)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
+      <Header onReset={isResultMode ? reset : undefined} />
       <main className="flex-1 px-4 sm:px-6 py-4 sm:py-6 max-w-[1100px] w-full mx-auto">
-        <Hero />
-        <form onSubmit={onEvaluate} className="mt-4 bg-white rounded-sc-card border border-sc-border shadow-sm p-3 sm:p-4">
-          <AddressPicker value={addr} onChange={setAddr} disabled={busy} />
-          <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <button
-              type="submit"
-              disabled={busy || !addr.city || !addr.street || !addr.building_number}
-              className="inline-flex items-center justify-center gap-2 bg-sc-primary text-white font-extrabold text-[14px] px-5 py-2.5 rounded-sc-btn shadow-[0_2px_8px_rgba(59,107,156,0.2)] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {busy ? <><Loader2 size={16} className="animate-spin" /> בודקים את הכתובת…</> : <><Wand2 size={16} /> הערך עכשיו</>}
-            </button>
-            <p className="text-[12px] text-sc-text-muted">
-              בחינם, ללא הרשמה. מבוסס על מקורות ציבוריים בלבד.
-            </p>
-          </div>
-          {error && (
-            <div className="mt-4 bg-sc-danger/10 text-sc-danger border border-sc-danger/30 rounded-sc-input px-4 py-3 text-[13px]">
-              {error}
-            </div>
-          )}
-        </form>
-        {(busy || report) && (
-          <ResultSection busy={busy} report={report} />
+        {!isResultMode && (
+          <>
+            <Hero />
+            <form onSubmit={onEvaluate} className="mt-4 bg-white rounded-sc-card border border-sc-border shadow-sm p-3 sm:p-4">
+              <AddressPicker value={addr} onChange={setAddr} disabled={busy} />
+              <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <button
+                  type="submit"
+                  disabled={busy || !addr.city || !addr.street || !addr.building_number}
+                  className="inline-flex items-center justify-center gap-2 bg-sc-primary text-white font-extrabold text-[15px] px-5 py-2.5 rounded-sc-btn shadow-[0_2px_8px_rgba(59,107,156,0.2)] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Wand2 size={16} /> הערך עכשיו
+                </button>
+                <p className="text-[13px] text-sc-text-muted">
+                  בחינם, ללא הרשמה. מבוסס על מקורות ציבוריים בלבד.
+                </p>
+              </div>
+              {error && (
+                <div className="mt-4 bg-sc-danger/10 text-sc-danger border border-sc-danger/30 rounded-sc-input px-4 py-3 text-[14px]">
+                  {error}
+                </div>
+              )}
+            </form>
+            <Marketing />
+          </>
         )}
-        {!report && !busy && <Marketing />}
+        {isResultMode && (
+          <ResultSection busy={busy} report={report} address={addr} />
+        )}
       </main>
-      <Footer />
+      {!isResultMode && <Footer />}
     </div>
   )
 }
 
 // ─── Layout ──────────────────────────────────────────────────────────
 
-function Header() {
+function Header({ onReset }: { onReset?: () => void }) {
   return (
-    <header className="bg-gradient-to-l from-sc-navy to-sc-primary text-white shadow-sm">
+    <header className="bg-gradient-to-l from-sc-navy to-sc-primary text-white shadow-sm sticky top-0 z-30 no-print">
       <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-2.5 flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-sc-input bg-white/20 grid place-items-center">
-          <Building2 size={18} />
+        <div className="w-9 h-9 rounded-sc-input bg-white/20 grid place-items-center">
+          <Building2 size={20} />
         </div>
         <div className="min-w-0">
-          <div className="text-[15px] font-extrabold leading-tight">Pre-Feasibility AI</div>
-          <div className="text-[10.5px] opacity-85">הערכת היתכנות פינוי-בינוי לפי כתובת</div>
+          <div className="text-[16px] font-extrabold leading-tight">Pre-Feasibility AI</div>
+          <div className="text-[12px] opacity-85">הערכת היתכנות פינוי-בינוי לפי כתובת</div>
         </div>
+        {onReset && (
+          <button
+            type="button"
+            onClick={onReset}
+            className="ms-auto inline-flex items-center gap-1.5 bg-white text-sc-navy text-[13px] font-extrabold px-3.5 py-2 rounded-sc-pill shadow-sm hover:bg-white/95 transition-colors"
+          >
+            <Plus size={14} strokeWidth={3} /> להערכה חדשה
+          </button>
+        )}
       </div>
     </header>
   )
@@ -112,13 +136,13 @@ function Header() {
 function Hero() {
   return (
     <section className="text-center sm:text-start">
-      <div className="inline-flex items-center gap-1.5 bg-sc-light-blue text-sc-primary text-[11px] font-bold uppercase tracking-wider px-3 py-0.5 rounded-sc-pill mb-2">
-        <Sparkles size={12} /> חינמי
+      <div className="inline-flex items-center gap-1.5 bg-sc-light-blue text-sc-primary text-[12px] font-bold uppercase tracking-wider px-3 py-0.5 rounded-sc-pill mb-2">
+        <Sparkles size={13} /> חינמי
       </div>
       <h1 className="text-[22px] sm:text-[28px] font-extrabold text-sc-text leading-tight mb-1.5">
         האם הבניין שלך מתאים לפינוי-בינוי?
       </h1>
-      <p className="text-[13px] sm:text-[14px] text-sc-text-secondary max-w-[640px] leading-snug">
+      <p className="text-[15px] text-sc-text-secondary max-w-[640px] leading-snug">
         הזן כתובת ונחזיר לך הערכה ראשונית מבוססת נתונים פתוחים — תכניות,
         מתחמים מוכרזים וזכויות בנייה — מתורגמים לסיכוי, מסלול ולוח זמנים.
       </p>
@@ -128,8 +152,8 @@ function Hero() {
 
 function Footer() {
   return (
-    <footer className="mt-6 border-t border-sc-border bg-white">
-      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-3 text-[10.5px] text-sc-text-muted leading-snug">
+    <footer className="mt-6 border-t border-sc-border bg-white no-print">
+      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-3 text-[12px] text-sc-text-muted leading-snug">
         מבוסס על 4 מקורות ציבוריים — GovMap (גוש/חלקה + מתחמי התחדשות מוכרזים),
         מינהל התכנון (MAVAT), שכבת שימושי קרקע במבא"ת, ו-data.gov.il.
         אינו מהווה חוות דעת אדריכלית, משפטית או שמאית רשמית.
@@ -142,18 +166,18 @@ function Footer() {
 
 function Marketing() {
   const cards = [
-    { icon: <ShieldCheck size={16} />,  title: 'מבוסס נתונים בלבד', body: 'אין ניחושים. כל איתות מקורו במקור ציבורי מאומת — עם קישור לראות את הנתון המקורי.' },
-    { icon: <Building2 size={16} />,    title: '4 מקורות · 6 שכבות מידע', body: 'GovMap, מינהל התכנון, שימושי קרקע במבא"ת, ו-data.gov.il — מצליבים במקביל לתמונה אחת ברורה.' },
+    { icon: <ShieldCheck size={18} />,  title: 'מבוסס נתונים בלבד', body: 'אין ניחושים. כל איתות מקורו במקור ציבורי מאומת — עם קישור לראות את הנתון המקורי.' },
+    { icon: <Building2 size={18} />,    title: '4 מקורות · 6 שכבות מידע', body: 'GovMap, מינהל התכנון, שימושי קרקע במבא"ת, ו-data.gov.il — מצליבים במקביל לתמונה אחת ברורה.' },
   ]
   return (
     <section className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
       {cards.map(c => (
-        <div key={c.title} className="bg-white border border-sc-border rounded-sc-card p-3">
-          <div className="w-8 h-8 rounded-sc-input bg-sc-light-blue text-sc-primary grid place-items-center mb-1.5">
+        <div key={c.title} className="bg-white border border-sc-border rounded-sc-card p-3.5">
+          <div className="w-9 h-9 rounded-sc-input bg-sc-light-blue text-sc-primary grid place-items-center mb-2">
             {c.icon}
           </div>
-          <div className="text-[13px] font-extrabold text-sc-text mb-1 leading-tight">{c.title}</div>
-          <div className="text-[11.5px] text-sc-text-secondary leading-snug">{c.body}</div>
+          <div className="text-[14px] font-extrabold text-sc-text mb-1 leading-tight">{c.title}</div>
+          <div className="text-[13px] text-sc-text-secondary leading-snug">{c.body}</div>
         </div>
       ))}
     </section>
@@ -166,15 +190,23 @@ function Marketing() {
 // internal sweep value continues from where loading left off (≈95%) and
 // then animates smoothly down to the real score.
 
-function ResultSection({ busy, report }: { busy: boolean; report: EvaluateResponse | null }) {
+function ResultSection({
+  busy,
+  report,
+  address,
+}: {
+  busy: boolean
+  report: EvaluateResponse | null
+  address: { city: string; street: string; building_number: string }
+}) {
   if (busy && !report) {
     return (
-      <div className="mt-8 flex flex-col items-center justify-center py-10 sm:py-16 bg-white rounded-sc-card border border-sc-border shadow-sm">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-sc-text-muted mb-4">
+      <div className="mt-4 flex flex-col items-center justify-center py-12 sm:py-20 bg-white rounded-sc-card border border-sc-border shadow-sm">
+        <div className="text-[13px] font-bold uppercase tracking-wider text-sc-text-muted mb-4">
           בודקים את הכתובת
         </div>
         <MaturityGauge phase="loading" size={240} />
-        <div className="mt-5 text-[12px] text-sc-text-muted text-center max-w-[380px] leading-relaxed px-4">
+        <div className="mt-5 text-[14px] text-sc-text-muted text-center max-w-[420px] leading-relaxed px-4">
           מצליבים 4 מקורות פתוחים (GovMap, MAVAT, שימושי קרקע, data.gov.il)
           על פני 6 שכבות מידע — התהליך לוקח כ-5 שניות.
         </div>
@@ -183,8 +215,9 @@ function ResultSection({ busy, report }: { busy: boolean; report: EvaluateRespon
   }
   if (!report) return null
   return (
-    <div className="mt-6 space-y-4">
+    <div id="report-root" className="mt-4 space-y-4">
       <ScoreHero data={report} />
+      <ExportBar data={report} />
       <AddressFacts data={report} />
       <CategoriesList categories={report.categories} />
       <SourceBreakdown contributions={report.source_contributions} />
@@ -199,7 +232,6 @@ function ScoreHero({ data }: { data: EvaluateResponse }) {
   return (
     <div className={`rounded-sc-card overflow-hidden border ${cls.border} bg-white shadow-sm`}>
       <div className={`px-5 py-6 sm:py-7 ${cls.bg} text-white relative overflow-hidden`}>
-        {/* Subtle radial glow behind the gauge for depth */}
         <div
           aria-hidden
           className="absolute inset-0 pointer-events-none"
@@ -210,16 +242,16 @@ function ScoreHero({ data }: { data: EvaluateResponse }) {
             <MaturityGauge phase="done" score={data.score} bucket={data.bucket} size={190} startPct={100} />
           </div>
           <div className="flex-1 min-w-0 text-center sm:text-start">
-            <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider opacity-85 mb-1">
+            <div className="text-[12px] sm:text-[13px] font-bold uppercase tracking-wider opacity-85 mb-1.5">
               תוצאת ההערכה
             </div>
             <div className="text-[20px] sm:text-[24px] font-extrabold leading-tight mb-2">
               {data.summary_he}
             </div>
-            <div className="text-[12px] opacity-90 inline-flex items-center gap-1.5 flex-wrap justify-center sm:justify-start">
-              <MapPin size={12} /> {data.address.formatted}
+            <div className="text-[14px] opacity-95 inline-flex items-center gap-1.5 flex-wrap justify-center sm:justify-start">
+              <MapPin size={13} /> {data.address.formatted}
               {data.address.gush != null && data.address.chelka != null && (
-                <span className="opacity-80">· גוש {data.address.gush} חלקה {data.address.chelka}</span>
+                <span className="opacity-85">· גוש {data.address.gush} חלקה {data.address.chelka}</span>
               )}
             </div>
           </div>
@@ -233,6 +265,108 @@ function ScoreHero({ data }: { data: EvaluateResponse }) {
   )
 }
 
+// ─── ExportBar: PDF / Email / ZIP ────────────────────────────────────
+
+function ExportBar({ data }: { data: EvaluateResponse }) {
+  const [zipping, setZipping] = useState(false)
+
+  const summaryText = buildEmailBody(data)
+
+  function downloadPdf() {
+    // Browser print dialog: user picks "Save as PDF". Print CSS hides the
+    // header/exports and styles the report for paper.
+    window.print()
+  }
+
+  function emailReport() {
+    const subject = `הערכת היתכנות פינוי-בינוי — ${data.address.formatted}`
+    const body = summaryText
+    window.location.href =
+      `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+  }
+
+  async function downloadZip() {
+    setZipping(true)
+    try {
+      const [{ default: JSZip }] = await Promise.all([import('jszip')])
+      const zip = new JSZip()
+      zip.file('report.json', JSON.stringify(data, null, 2))
+      zip.file('report.txt', summaryText)
+      zip.file('README.txt',
+`Pre-Feasibility AI — דוח היתכנות פינוי-בינוי
+
+הקובץ report.json מכיל את הדוח המלא במבנה מובנה (כל האיתותים, המקורות, הציון).
+הקובץ report.txt מכיל גרסת טקסט קריאה.
+
+הדוח מבוסס על נתונים ציבוריים מ-GovMap, מינהל התכנון (MAVAT), שכבת שימושי
+קרקע במבא"ת, ו-data.gov.il. אינו מהווה חוות דעת אדריכלית, משפטית או שמאית.
+`,
+      )
+      const blob = await zip.generateAsync({ type: 'blob' })
+      triggerDownload(blob, `feasibility-${slugifyAddress(data.address.formatted)}.zip`)
+    } finally {
+      setZipping(false)
+    }
+  }
+
+  return (
+    <div className="no-print bg-white rounded-sc-card border border-sc-border p-3 flex items-center gap-2 flex-wrap">
+      <div className="text-[13px] font-bold text-sc-text-secondary me-1">שתף את הדוח:</div>
+      <button onClick={downloadPdf}    className={exportBtnCls()}><Download size={14} /> הורד PDF</button>
+      <button onClick={emailReport}    className={exportBtnCls()}><Mail size={14} /> שלח במייל</button>
+      <button onClick={downloadZip} disabled={zipping} className={exportBtnCls()}>
+        {zipping ? <Loader2 size={14} className="animate-spin" /> : <FileArchive size={14} />}
+        הורד ZIP
+      </button>
+    </div>
+  )
+}
+
+function exportBtnCls() {
+  return 'inline-flex items-center gap-1.5 bg-sc-light-blue text-sc-primary text-[13px] font-bold px-3 py-2 rounded-sc-btn hover:bg-sc-primary hover:text-white transition-colors disabled:opacity-50'
+}
+
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1500)
+}
+
+function slugifyAddress(s: string): string {
+  return s.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'report'
+}
+
+function buildEmailBody(data: EvaluateResponse): string {
+  const lines: string[] = []
+  lines.push(`הערכת היתכנות פינוי-בינוי — ${data.address.formatted}`)
+  if (data.address.gush != null) lines.push(`גוש ${data.address.gush} חלקה ${data.address.chelka} · שטח מגרש ${data.address.lot_sqm ?? '—'} מ"ר`)
+  lines.push('')
+  lines.push(`${data.summary_he}`)
+  lines.push(`ציון: ${data.score}/100`)
+  if (data.expected_time_years.max > 0) lines.push(`לוח זמנים: ${data.expected_time_years.min}-${data.expected_time_years.max} שנים`)
+  lines.push(`מסלול: ${trackLabel(data.recommended_track)}`)
+  lines.push('')
+  lines.push('— מה בדקנו —')
+  for (const c of data.categories) {
+    const emoji = c.found ? (c.weight_contribution > 0 ? '✅' : c.weight_contribution < 0 ? '⚠️' : '·') : '·'
+    lines.push(`${emoji} ${c.title}: ${c.summary}${c.url ? `\n   ${c.url}` : ''}`)
+  }
+  lines.push('')
+  lines.push('— ההמלצה —')
+  data.recommendations.forEach((r, i) => lines.push(`${i + 1}. ${r}`))
+  lines.push('')
+  lines.push('— מקורות —')
+  for (const s of data.sources_used) lines.push(`· ${s.name} — ${s.status} · ${s.duration_ms}ms`)
+  lines.push('')
+  lines.push(data.disclaimer)
+  return lines.join('\n')
+}
+
 function AddressFacts({ data }: { data: EvaluateResponse }) {
   const facts = [
     data.address.lot_sqm != null && { label: 'שטח מגרש', value: `${data.address.lot_sqm} מ"ר` },
@@ -242,12 +376,12 @@ function AddressFacts({ data }: { data: EvaluateResponse }) {
   ].filter(Boolean) as Array<{ label: string; value: string }>
   return (
     <div className="bg-white rounded-sc-card border border-sc-border p-4">
-      <div className="text-[11px] font-bold uppercase tracking-wider text-sc-text-muted mb-2">פרטי הנכס</div>
+      <div className="text-[13px] font-bold uppercase tracking-wider text-sc-text-muted mb-2">פרטי הנכס</div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {facts.map(f => (
-          <div key={f.label} className="text-[12px]">
+          <div key={f.label} className="text-[14px]">
             <div className="text-sc-text-muted">{f.label}</div>
-            <div className="font-extrabold text-sc-text text-[14px]">{f.value}</div>
+            <div className="font-extrabold text-sc-text text-[15px]">{f.value}</div>
           </div>
         ))}
       </div>
@@ -259,7 +393,7 @@ function CategoriesList({ categories }: { categories: Category[] }) {
   if (!categories || categories.length === 0) return null
   return (
     <div className="bg-white rounded-sc-card border border-sc-border p-4">
-      <div className="text-[11px] font-bold uppercase tracking-wider text-sc-text-muted mb-3">
+      <div className="text-[13px] font-bold uppercase tracking-wider text-sc-text-muted mb-3">
         📊 מה בדקנו ומה נמצא
       </div>
       <ul className="m-0 p-0 space-y-3">
@@ -271,14 +405,14 @@ function CategoriesList({ categories }: { categories: Category[] }) {
 function CategoryRow({ c }: { c: Category }) {
   return (
     <li className="list-none flex items-start gap-2.5">
-      <span className="mt-0.5 w-5 text-[16px] leading-none flex-shrink-0">{c.emoji}</span>
+      <span className="mt-0.5 w-5 text-[18px] leading-none flex-shrink-0">{c.emoji}</span>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="font-extrabold text-sc-text text-[13px]">{c.title}</div>
+          <div className="font-extrabold text-sc-text text-[15px]">{c.title}</div>
           {c.found && c.weight_pct > 0 && (
             <span
               className={
-                'text-[10px] font-bold px-1.5 py-0.5 rounded-sc-pill ' +
+                'text-[12px] font-bold px-2 py-0.5 rounded-sc-pill ' +
                 (c.weight_contribution > 0
                   ? 'bg-sc-success/15 text-sc-success'
                   : c.weight_contribution < 0
@@ -290,18 +424,18 @@ function CategoryRow({ c }: { c: Category }) {
             </span>
           )}
         </div>
-        <div className="text-[12px] font-semibold text-sc-text leading-relaxed mt-0.5">
+        <div className="text-[14px] font-semibold text-sc-text leading-relaxed mt-0.5">
           {c.summary}
         </div>
-        <div className="text-[11px] text-sc-text-secondary leading-relaxed mt-0.5">
+        <div className="text-[13px] text-sc-text-secondary leading-relaxed mt-0.5">
           {c.impact}
         </div>
         {c.detail && (
-          <div className="mt-1.5 text-[11px] text-sc-text leading-relaxed bg-sc-bg/60 border border-sc-border rounded-sc-input px-2.5 py-1.5">
+          <div className="mt-1.5 text-[13px] text-sc-text leading-relaxed bg-sc-bg/60 border border-sc-border rounded-sc-input px-2.5 py-1.5">
             {c.detail}
           </div>
         )}
-        <div className="text-[10px] text-sc-text-muted mt-1 inline-flex items-center gap-1.5 flex-wrap">
+        <div className="text-[12px] text-sc-text-muted mt-1.5 inline-flex items-center gap-2 flex-wrap">
           <span>מקור: {sourceLabel(c.source)}</span>
           {c.url && (
             <a
@@ -310,7 +444,7 @@ function CategoryRow({ c }: { c: Category }) {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-sc-primary font-semibold hover:underline"
             >
-              <ExternalLink size={10} /> צפה במקור
+              <ExternalLink size={11} /> צפה במקור
             </a>
           )}
         </div>
@@ -323,7 +457,7 @@ function SourceBreakdown({ contributions }: { contributions: SourceContribution[
   if (!contributions || contributions.length === 0) return null
   return (
     <div className="bg-white rounded-sc-card border border-sc-border p-4">
-      <div className="text-[11px] font-bold uppercase tracking-wider text-sc-text-muted mb-3">
+      <div className="text-[13px] font-bold uppercase tracking-wider text-sc-text-muted mb-3">
         🧮 משקל כל מקור בציון
       </div>
       <ul className="m-0 p-0 space-y-2.5">
@@ -335,11 +469,11 @@ function SourceBreakdown({ contributions }: { contributions: SourceContribution[
           const badgeText = s.failed ? 'לא הגיב' : 'ללא תרומה לציון'
           return (
             <li key={s.name} className="list-none">
-              <div className="flex items-center justify-between text-[12px] mb-1 gap-2">
+              <div className="flex items-center justify-between text-[14px] mb-1 gap-2">
                 <span className="font-extrabold text-sc-text inline-flex items-center gap-1.5">
                   {sourceLabel(s.name)}
                   {neutral && (
-                    <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-sc-pill ${badgeCls}`}>
+                    <span className={`inline-flex items-center gap-1 text-[12px] font-bold px-2 py-0.5 rounded-sc-pill ${badgeCls}`}>
                       {badgeText}
                     </span>
                   )}
@@ -353,7 +487,7 @@ function SourceBreakdown({ contributions }: { contributions: SourceContribution[
               {neutral ? (
                 s.note && (
                   <div className={
-                    'text-[11px] leading-relaxed rounded-sc-input px-2.5 py-1.5 border ' +
+                    'text-[13px] leading-relaxed rounded-sc-input px-2.5 py-1.5 border ' +
                     (s.failed
                       ? 'text-sc-danger bg-sc-danger/5 border-sc-danger/30'
                       : 'text-sc-text-muted bg-sc-bg border-sc-border')
@@ -385,18 +519,18 @@ function RecommendationCard({ data }: { data: EvaluateResponse }) {
   return (
     <div className="bg-gradient-to-l from-sc-gold/15 to-sc-gold/5 rounded-sc-card border border-sc-gold/40 p-4">
       <div className="flex items-center gap-2 mb-2">
-        <Star size={14} className="text-sc-gold" />
-        <div className="text-[11px] font-bold uppercase tracking-wider text-sc-gold">ההמלצה שלנו</div>
+        <Star size={15} className="text-sc-gold" />
+        <div className="text-[13px] font-bold uppercase tracking-wider text-sc-gold">ההמלצה שלנו</div>
       </div>
-      <div className="text-[15px] font-extrabold text-sc-text mb-1">
+      <div className="text-[16px] font-extrabold text-sc-text mb-1.5">
         {trackHeadline(data.recommended_track)}
       </div>
-      <div className="text-[12px] text-sc-text-secondary mb-3 inline-flex items-center gap-1.5">
-        <Clock size={11} /> לוח זמנים צפוי: {data.expected_time_years.max > 0 ? `${data.expected_time_years.min}-${data.expected_time_years.max} שנים` : '—'}
+      <div className="text-[14px] text-sc-text-secondary mb-3 inline-flex items-center gap-1.5">
+        <Clock size={13} /> לוח זמנים צפוי: {data.expected_time_years.max > 0 ? `${data.expected_time_years.min}-${data.expected_time_years.max} שנים` : '—'}
       </div>
-      <ol className="m-0 ps-5 space-y-1">
+      <ol className="m-0 ps-5 space-y-1.5">
         {data.recommendations.map((r, i) => (
-          <li key={i} className="text-[13px] text-sc-text">
+          <li key={i} className="text-[14px] text-sc-text leading-relaxed">
             <span className="font-bold">{i + 1}.</span> {r}
           </li>
         ))}
@@ -408,7 +542,7 @@ function RecommendationCard({ data }: { data: EvaluateResponse }) {
 function SourcesFooter({ sources, disclaimer }: { sources: SourceResult[]; disclaimer: string }) {
   return (
     <div className="bg-white rounded-sc-card border border-sc-border p-4">
-      <div className="text-[11px] font-bold uppercase tracking-wider text-sc-text-muted mb-2">
+      <div className="text-[13px] font-bold uppercase tracking-wider text-sc-text-muted mb-2">
         מקורות שנבדקו
       </div>
       <div className="flex flex-wrap gap-2 mb-3">
@@ -416,7 +550,7 @@ function SourcesFooter({ sources, disclaimer }: { sources: SourceResult[]; discl
           <span
             key={s.name}
             className={
-              'inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-1 rounded-sc-pill ' +
+              'inline-flex items-center gap-1.5 text-[13px] font-bold px-2.5 py-1 rounded-sc-pill ' +
               (s.status === 'success'
                 ? 'bg-sc-success/15 text-sc-success'
                 : s.status === 'partial'
@@ -424,12 +558,12 @@ function SourcesFooter({ sources, disclaimer }: { sources: SourceResult[]; discl
                   : 'bg-sc-danger/10 text-sc-danger')
             }
           >
-            {s.status === 'success' ? <Check size={11} /> : s.status === 'partial' ? <AlertTriangle size={11} /> : <X size={11} />}
+            {s.status === 'success' ? <Check size={12} /> : s.status === 'partial' ? <AlertTriangle size={12} /> : <X size={12} />}
             {sourceLabel(s.name)} · {s.duration_ms} ms
           </span>
         ))}
       </div>
-      <div className="text-[11px] text-sc-text-muted leading-relaxed">{disclaimer}</div>
+      <div className="text-[12px] text-sc-text-muted leading-relaxed">{disclaimer}</div>
     </div>
   )
 }
@@ -438,9 +572,9 @@ function SourcesFooter({ sources, disclaimer }: { sources: SourceResult[]; discl
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className={'text-center rounded-sc-input p-2 ' + (accent ? 'bg-sc-light-blue' : 'bg-sc-bg')}>
-      <div className="text-[10px] text-sc-text-muted">{label}</div>
-      <div className={'text-[14px] font-extrabold ' + (accent ? 'text-sc-primary' : 'text-sc-text')}>{value}</div>
+    <div className={'text-center rounded-sc-input p-2.5 ' + (accent ? 'bg-sc-light-blue' : 'bg-sc-bg')}>
+      <div className="text-[12px] text-sc-text-muted">{label}</div>
+      <div className={'text-[15px] font-extrabold ' + (accent ? 'text-sc-primary' : 'text-sc-text')}>{value}</div>
     </div>
   )
 }
