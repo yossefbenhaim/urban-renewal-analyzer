@@ -292,6 +292,12 @@ function ExportBar({ data }: { data: EvaluateResponse }) {
     if (!node) return
     setBusy(true)
     try {
+      // Wait for web fonts before the screenshot so the score number doesn't
+      // shift mid-capture, and give the score-settle animation (1.2 s) time
+      // to finish so the gauge value matches what the user sees.
+      if (document.fonts?.ready) await document.fonts.ready
+      await new Promise(r => setTimeout(r, 1300))
+
       const [{ default: html2canvas }, jsPdfMod] = await Promise.all([
         import('html2canvas'),
         import('jspdf'),
@@ -300,10 +306,21 @@ function ExportBar({ data }: { data: EvaluateResponse }) {
       const JsPDF = (jsPdfMod as any).jsPDF ?? (jsPdfMod as any).default
 
       const canvas = await html2canvas(node, {
-        scale: window.devicePixelRatio >= 2 ? 2 : 1.5,
+        scale: 2,
         backgroundColor: '#ffffff',
         useCORS: true,
         logging: false,
+        onclone: (doc: Document) => {
+          // html2canvas mis-renders `filter: drop-shadow(...)` and any
+          // CSS transitions still in flight. Strip both from the cloned
+          // DOM so the screenshot matches the post-animation final state.
+          doc.querySelectorAll<HTMLElement>('*').forEach(el => {
+            const s = el.style
+            if (s.filter && /drop-shadow/.test(s.filter)) s.filter = 'none'
+            s.transition = 'none'
+            s.animation = 'none'
+          })
+        },
       })
       const imgData = canvas.toDataURL('image/jpeg', 0.92)
 

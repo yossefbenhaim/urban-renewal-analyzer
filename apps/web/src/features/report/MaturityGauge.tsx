@@ -151,9 +151,12 @@ export function MaturityGauge({ phase, score, bucket, size = 220, startPct }: Pr
             style={{ transition: 'stroke 0.6s ease' }}
           />
         </svg>
+        {/* Centered overlay — grid place-items renders identically in browsers
+            AND in html2canvas (flexbox + mixed-size inline text gets baseline
+            shifts when screenshot'd, so we avoid that combo here). */}
         <div
-          className="absolute inset-0 flex flex-col items-center justify-center"
-          style={{ pointerEvents: 'none' }}
+          className="absolute inset-0"
+          style={{ pointerEvents: 'none', display: 'grid', placeItems: 'center' }}
         >
           {showCheck ? (
             <svg
@@ -176,16 +179,18 @@ export function MaturityGauge({ phase, score, bucket, size = 220, startPct }: Pr
             <div
               className="tabular-nums font-extrabold"
               style={{
-                fontSize: size * 0.32,
+                display: 'inline-flex',
+                alignItems: 'baseline',
+                gap: 2,
                 lineHeight: 1,
                 color: phase === 'done' ? palette.stroke : '#1e3a5f',
                 letterSpacing: '-0.02em',
               }}
             >
-              {Math.round(pct)}
-              {phase === 'done'
-                ? <span style={{ fontSize: size * 0.13, fontWeight: 500, color: '#8e8e9e' }}>/100</span>
-                : <span style={{ fontSize: size * 0.13, color: '#8e8e9e' }}>%</span>}
+              <span style={{ fontSize: size * 0.32 }}>{Math.round(pct)}</span>
+              <span style={{ fontSize: size * 0.13, fontWeight: 500, color: '#8e8e9e' }}>
+                {phase === 'done' ? '/100' : '%'}
+              </span>
             </div>
           )}
         </div>
