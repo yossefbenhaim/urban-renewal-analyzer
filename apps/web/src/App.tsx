@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { AddressPicker } from './features/address/AddressPicker'
 import type {
-  Bucket, EvaluateResponse, Signal, SourceResult, Track,
+  Bucket, Category, EvaluateResponse, SourceContribution, SourceResult, Track,
 } from './types'
 
 export function App() {
@@ -156,7 +156,8 @@ function Report({ data }: { data: EvaluateResponse }) {
     <div className="space-y-4">
       <ScoreBanner data={data} />
       <AddressFacts data={data} />
-      <SignalsList signals={data.signals} />
+      <CategoriesList categories={data.categories} />
+      <SourceBreakdown contributions={data.source_contributions} />
       <RecommendationCard data={data} />
       <SourcesFooter sources={data.sources_used} disclaimer={data.disclaimer} />
     </div>
@@ -212,33 +213,84 @@ function AddressFacts({ data }: { data: EvaluateResponse }) {
   )
 }
 
-function SignalsList({ signals }: { signals: Signal[] }) {
-  if (signals.length === 0) return null
+function CategoriesList({ categories }: { categories: Category[] }) {
+  if (!categories || categories.length === 0) return null
   return (
     <div className="bg-white rounded-sc-card border border-sc-border p-4">
       <div className="text-[11px] font-bold uppercase tracking-wider text-sc-text-muted mb-3">
-        מה בדקנו ומה נמצא
+        📊 מה בדקנו ומה נמצא
       </div>
-      <ul className="m-0 p-0 space-y-2.5">
-        {signals.map((s, i) => <SignalRow key={i} s={s} />)}
+      <ul className="m-0 p-0 space-y-3">
+        {categories.map(c => <CategoryRow key={c.key} c={c} />)}
       </ul>
     </div>
   )
 }
-function SignalRow({ s }: { s: Signal }) {
-  const icon =
-    s.kind === 'positive' ? <Check size={14} className="text-sc-success" /> :
-    s.kind === 'negative' ? <AlertTriangle size={14} className="text-sc-warning" /> :
-                            <span className="w-1.5 h-1.5 rounded-full bg-sc-text-muted inline-block" />
+function CategoryRow({ c }: { c: Category }) {
   return (
     <li className="list-none flex items-start gap-2.5">
-      <span className="mt-0.5 w-5 grid place-items-center flex-shrink-0">{icon}</span>
+      <span className="mt-0.5 w-5 text-[16px] leading-none flex-shrink-0">{c.emoji}</span>
       <div className="flex-1 min-w-0">
-        <div className="font-extrabold text-sc-text text-[13px]">{s.title}</div>
-        <div className="text-[12px] text-sc-text-secondary leading-relaxed">{s.description}</div>
-        <div className="text-[10px] text-sc-text-muted mt-0.5">מקור: {sourceLabel(s.source)} · משקל {s.weight > 0 ? '+' : ''}{s.weight}</div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="font-extrabold text-sc-text text-[13px]">{c.title}</div>
+          {c.found && c.weight_pct > 0 && (
+            <span
+              className={
+                'text-[10px] font-bold px-1.5 py-0.5 rounded-sc-pill ' +
+                (c.weight_contribution > 0
+                  ? 'bg-sc-success/15 text-sc-success'
+                  : c.weight_contribution < 0
+                    ? 'bg-sc-warning/15 text-sc-warning'
+                    : 'bg-sc-text-muted/15 text-sc-text-muted')
+              }
+            >
+              {c.weight_contribution > 0 ? '+' : ''}{c.weight_contribution} · {c.weight_pct}% מהציון
+            </span>
+          )}
+        </div>
+        <div className="text-[12px] font-semibold text-sc-text leading-relaxed mt-0.5">
+          {c.summary}
+        </div>
+        <div className="text-[11px] text-sc-text-secondary leading-relaxed mt-0.5">
+          {c.impact}
+        </div>
+        <div className="text-[10px] text-sc-text-muted mt-1">מקור: {sourceLabel(c.source)}</div>
       </div>
     </li>
+  )
+}
+
+function SourceBreakdown({ contributions }: { contributions: SourceContribution[] }) {
+  if (!contributions || contributions.length === 0) return null
+  return (
+    <div className="bg-white rounded-sc-card border border-sc-border p-4">
+      <div className="text-[11px] font-bold uppercase tracking-wider text-sc-text-muted mb-3">
+        🧮 משקל כל מקור בציון
+      </div>
+      <ul className="m-0 p-0 space-y-2">
+        {contributions.map(s => (
+          <li key={s.name} className="list-none">
+            <div className="flex items-center justify-between text-[12px] mb-1">
+              <span className="font-extrabold text-sc-text">{sourceLabel(s.name)}</span>
+              <span className="text-sc-text-muted tabular-nums">
+                {s.pct_of_total}% · {s.positive_weight > 0 ? '+' : ''}{s.positive_weight}
+                {s.negative_weight > 0 ? <> / −{s.negative_weight}</> : null}
+              </span>
+            </div>
+            <div className="h-1.5 rounded-sc-pill bg-sc-light-blue overflow-hidden flex">
+              <div
+                className="h-full bg-sc-success"
+                style={{ width: `${(s.positive_weight / Math.max(1, s.total_weight)) * s.pct_of_total}%` }}
+              />
+              <div
+                className="h-full bg-sc-warning"
+                style={{ width: `${(s.negative_weight / Math.max(1, s.total_weight)) * s.pct_of_total}%` }}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

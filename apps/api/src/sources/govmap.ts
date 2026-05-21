@@ -130,21 +130,27 @@ export async function fetchAddress(addrText: string): Promise<SourceFetchResult>
   if (address.lot_sqm != null) {
     if (address.lot_sqm < 350) {
       signals.push({
-        kind: 'negative', weight: -25, source: 'govmap',
+        kind: 'negative', weight: -20, source: 'govmap', category: 'lot_size',
         title: 'מגרש קטן מאוד',
         description: `שטח המגרש הרשום הוא ${address.lot_sqm} מ"ר. פרויקט עצמאי כמעט בלתי אפשרי — נדרש חיבור למתחם רחב יותר.`,
       })
     } else if (address.lot_sqm < 600) {
       signals.push({
-        kind: 'negative', weight: -15, source: 'govmap',
+        kind: 'negative', weight: -10, source: 'govmap', category: 'lot_size',
         title: 'מגרש קטן יחסית',
         description: `שטח המגרש ${address.lot_sqm} מ"ר. פרויקט עצמאי פחות אטרקטיבי — שווה לבחון חיבור עם שכנים.`,
       })
     } else if (address.lot_sqm >= 1500) {
       signals.push({
-        kind: 'positive', weight: 10, source: 'govmap',
+        kind: 'positive', weight: 5, source: 'govmap', category: 'lot_size',
         title: 'מגרש גדול',
         description: `שטח המגרש ${address.lot_sqm} מ"ר — מספק מקום לבנייה עצמאית רחבה.`,
+      })
+    } else {
+      signals.push({
+        kind: 'neutral', weight: 0, source: 'govmap', category: 'lot_size',
+        title: 'גודל מגרש סטנדרטי',
+        description: `שטח המגרש ${address.lot_sqm} מ"ר — בטווח הרגיל לפרויקט.`,
       })
     }
   }
@@ -168,7 +174,7 @@ export async function fetchUrbanRenewalLayer(
   return {
     ok: true,
     signals: [{
-      kind: 'positive', weight: 25, source: 'govmap',
+      kind: 'positive', weight: 20, source: 'govmap', category: 'urban_renewal_area',
       title: 'מתחם התחדשות עירונית מוכרז',
       description: `הכתובת נמצאת בתוך מתחם "${name}". זהו אינדיקטור חזק במיוחד להיתכנות.`,
     }],

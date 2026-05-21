@@ -15,6 +15,7 @@ import { z } from 'zod'
 import { fetchAddress, fetchUrbanRenewalLayer } from '../sources/govmap.js'
 import { fetchPlanningSchemes } from '../sources/mavat.js'
 import { fetchCityUrbanRenewal } from '../sources/datagov.js'
+import { fetchLandUse } from '../sources/landuse.js'
 import {
   bucketize, computeScore, rankSignals,
 } from '../engine/score.js'
@@ -22,6 +23,7 @@ import {
   expectedTimeYears, recommendTrack, recommendations,
   singleBuildingFeasible, summaryHe,
 } from '../engine/recommend.js'
+import { categorize, sourceContributions } from '../engine/categorize.js'
 import { reportCache, cacheKey } from '../lib/cache.js'
 import type {
   EvaluateResponse, ResolvedAddress, Signal, SourceFetchResult,
@@ -89,14 +91,15 @@ export async function evaluateHandler(req: Request, res: Response) {
   const itmY = foundationAddr.itm_y!
 
   // 2. Tier-2 fan-out.
-  const [renewalLayer, planningSchemes, cityRenewal] = await Promise.all([
+  const [renewalLayer, planningSchemes, cityRenewal, landUse] = await Promise.all([
     timed(fetchUrbanRenewalLayer(itmX, itmY)),
     timed(fetchPlanningSchemes(itmX, itmY)),
     timed(fetchCityUrbanRenewal(city)),
+    timed(fetchLandUse(itmX, itmY)),
   ])
 
   // 3. Aggregate.
-  const all = [foundation, renewalLayer, planningSchemes, cityRenewal]
+  const all = [foundation, renewalLayer, planningSchemes, cityRenewal, landUse]
   const signals: Signal[] = []
   for (const r of all) if (r.result?.signals) signals.push(...r.result.signals)
   const ranked = rankSignals(signals)
@@ -121,10 +124,11 @@ export async function evaluateHandler(req: Request, res: Response) {
   const track = recommendTrack(engineCtx)
 
   const sourceOrder: Array<{ name: SourceName; run: RunResult }> = [
-    { name: 'govmap',       run: foundation     },
-    { name: 'govmap',       run: renewalLayer   },
-    { name: 'mavat',        run: planningSchemes },
-    { name: 'data.gov.il',  run: cityRenewal    },
+    { name: 'govmap',        run: foundation      },
+    { name: 'govmap',        run: renewalLayer    },
+    { name: 'mavat',         run: planningSchemes },
+    { name: 'data.gov.il',   run: cityRenewal     },
+    { name: 'mavat.landuse', run: landUse         },
   ]
   // Collapse the two govmap rows into one for the user-facing footer.
   const sourcesByName = new Map<SourceName, SourceResult>()
@@ -153,6 +157,8 @@ export async function evaluateHandler(req: Request, res: Response) {
     score,
     bucket,
     signals: ranked,
+    categories: categorize(ranked),
+    source_contributions: sourceContributions(ranked),
     summary_he: summaryHe(engineCtx),
     recommended_track: track,
     single_building_feasible: singleBuildingFeasible(engineCtx),

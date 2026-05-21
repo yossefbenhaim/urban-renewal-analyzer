@@ -44,10 +44,10 @@ function classifyStatus(s?: string): {
   label: string
 } {
   const t = (s ?? '').trim()
-  if (/מאושר|פורסמ/.test(t)) return { weight: 25, kind: 'positive', label: 'תכנית מאושרת' }
-  if (/הפקד/.test(t))         return { weight: 20, kind: 'positive', label: 'תכנית בהפקדה' }
-  if (/בעיבוד|בייזום|בבדיק/.test(t)) return { weight: 10, kind: 'positive', label: 'תכנית בעיבוד' }
-  return { weight: 5, kind: 'neutral', label: 'תכנית רשומה' }
+  if (/מאושר|פורסמ/.test(t)) return { weight: 12, kind: 'positive', label: 'תכנית מאושרת' }
+  if (/הפקד/.test(t))         return { weight:  8, kind: 'positive', label: 'תכנית בהפקדה' }
+  if (/בעיבוד|בייזום|בבדיק/.test(t)) return { weight: 4, kind: 'positive', label: 'תכנית בעיבוד' }
+  return { weight: 2, kind: 'neutral', label: 'תכנית רשומה' }
 }
 
 export async function fetchPlanningSchemes(
@@ -64,7 +64,7 @@ export async function fetchPlanningSchemes(
     return {
       ok: true,
       signals: [{
-        kind: 'neutral', weight: 0, source: 'mavat',
+        kind: 'neutral', weight: 0, source: 'mavat', category: 'planning_schemes',
         title: 'אין תכנית בניין-עיר עדכנית באזור',
         description: 'לא נמצאה תב"ע פעילה החופפת לחלקה. ייתכן שתכנון יתחיל בעתיד.',
       }],
@@ -86,6 +86,7 @@ export async function fetchPlanningSchemes(
     kind: kind === 'positive' ? 'positive' : 'neutral',
     weight,
     source: 'mavat',
+    category: 'planning_schemes',
     title: label,
     description:
       `תכנית ${a.pl_number ?? ''} "${a.pl_name ?? ''}" בסטטוס "${a.station_desc ?? '—'}" ` +

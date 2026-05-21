@@ -46,11 +46,18 @@ export async function fetchCityUrbanRenewal(city: string): Promise<SourceFetchRe
   if (records.length === 0) {
     return {
       ok: true,
-      signals: [{
-        kind: 'neutral', weight: 0, source: 'data.gov.il',
-        title: `אין מתחמי התחדשות מוכרזים ב${city}`,
-        description: 'העיר אינה ברשימת רשות ההתחדשות העירונית למתחמים מוכרזים.',
-      }],
+      signals: [
+        {
+          kind: 'neutral', weight: 0, source: 'data.gov.il', category: 'municipal_policy',
+          title: `אין מתחמי התחדשות מוכרזים ב${city}`,
+          description: 'העיר אינה ברשימת רשות ההתחדשות העירונית למתחמים מוכרזים.',
+        },
+        {
+          kind: 'neutral', weight: 0, source: 'data.gov.il', category: 'projects_in_city',
+          title: 'אין פרויקטי התחדשות פעילים באותה רשות',
+          description: 'לא נמצאו פרויקטים בביצוע באותה עיר.',
+        },
+      ],
       raw: res,
     }
   }
@@ -60,19 +67,24 @@ export async function fetchCityUrbanRenewal(city: string): Promise<SourceFetchRe
   const inProgress = records.filter(r => /ביצוע|מימוש/.test(clean(r.Status)) || clean(r.Bebitzua) === 'כן').length
 
   const signals: Signal[] = [{
-    kind: 'positive', weight: 15, source: 'data.gov.il',
+    kind: 'positive', weight: 7, source: 'data.gov.il', category: 'municipal_policy',
     title: `${city} ברשימת התחדשות עירונית פעילה`,
     description:
       `נמצאו ${records.length} מתחמי התחדשות מוכרזים בעיר (מתוכם ${approved} בסטטוס מאושר).` +
       (inProgress > 0 ? ` ${inProgress} מתחמים בביצוע פעיל.` : ''),
   }]
 
-  // Bonus +5 if at least one area is in execution — signals municipal momentum.
   if (inProgress > 0) {
     signals.push({
-      kind: 'positive', weight: 5, source: 'data.gov.il',
+      kind: 'positive', weight: 5, source: 'data.gov.il', category: 'projects_in_city',
       title: 'מתחמי התחדשות בביצוע באותה רשות',
-      description: 'יש פרויקטי התחדשות פעילים בעיר — סימן לפעילות יזמית רציפה.',
+      description: `${inProgress} מתחמים בביצוע פעיל בעיר — סימן לפעילות יזמית רציפה.`,
+    })
+  } else {
+    signals.push({
+      kind: 'neutral', weight: 0, source: 'data.gov.il', category: 'projects_in_city',
+      title: 'אין פרויקטי התחדשות בביצוע כעת',
+      description: 'יש מתחמים מוכרזים אבל אף אחד מהם לא בשלב ביצוע פעיל.',
     })
   }
 
