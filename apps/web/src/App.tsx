@@ -10,7 +10,7 @@ import {
 import { AddressPicker } from './features/address/AddressPicker'
 import { MaturityGauge } from './features/report/MaturityGauge'
 import type {
-  Bucket, Category, EvaluateResponse, SourceContribution, SourceResult, Track,
+  Bucket, Category, CommercialLevel, EvaluateResponse, SourceContribution, SourceResult, Track,
 } from './types'
 
 // The maturity gauge sweeps 0 → 95% over this duration before settling on
@@ -20,6 +20,8 @@ const MIN_LOADING_MS = 5000
 
 export function App() {
   const [addr, setAddr] = useState({ city: '', street: '', building_number: '' })
+  const [apartmentsCount, setApartmentsCount] = useState<string>('')
+  const [commercial, setCommercial] = useState<CommercialLevel | ''>('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [report, setReport] = useState<EvaluateResponse | null>(null)
@@ -37,10 +39,15 @@ export function App() {
     // even when the API/cache returns quickly.
     const floor = new Promise<void>(r => setTimeout(r, MIN_LOADING_MS))
     try {
+      const payload: Record<string, unknown> = { ...addr }
+      const aptInt = parseInt(apartmentsCount, 10)
+      if (!Number.isNaN(aptInt) && aptInt > 0) payload.apartments_count = aptInt
+      if (commercial) payload.commercial = commercial
+
       const res = await fetch('/api/evaluate', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(addr),
+        body: JSON.stringify(payload),
       })
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
@@ -61,6 +68,8 @@ export function App() {
 
   function reset() {
     setAddr({ city: '', street: '', building_number: '' })
+    setApartmentsCount('')
+    setCommercial('')
     setBusy(false)
     setError(null)
     setReport(null)
@@ -76,6 +85,62 @@ export function App() {
             <Hero />
             <form onSubmit={onEvaluate} className="mt-4 bg-white rounded-sc-card border border-sc-border shadow-sm p-3 sm:p-4">
               <AddressPicker value={addr} onChange={setAddr} disabled={busy} />
+
+              {/* Two optional details that materially change the score:
+                  apartment count drives the density rubric (m²/apt ratio),
+                  commercial level drives the complexity rubric. */}
+              <div className="mt-3 pt-3 border-t border-sc-border space-y-3">
+                <div className="text-[13px] font-bold text-sc-text-secondary">
+                  פרטים נוספים על הבניין <span className="font-normal text-sc-text-muted">(אופציונלי, מדויק יותר)</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="block text-[14px] font-semibold text-sc-text-secondary mb-1.5">
+                      מספר דירות בבניין
+                    </span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={500}
+                      value={apartmentsCount}
+                      onChange={e => setApartmentsCount(e.target.value)}
+                      disabled={busy}
+                      placeholder="לדוגמה: 12"
+                      className="w-full bg-white border border-sc-border-strong rounded-sc-input ps-3 pe-3 py-2.5 text-[15px] outline-none focus:ring-2 focus:ring-sc-primary/10 focus:border-sc-primary disabled:bg-sc-bg disabled:text-sc-text-muted"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="block text-[14px] font-semibold text-sc-text-secondary mb-1.5">
+                      האם יש מסחר בבניין?
+                    </span>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {([
+                        { v: 'none',  label: 'אין' },
+                        { v: 'small', label: 'מסחר קטן' },
+                        { v: 'large', label: 'מסחר משמעותי' },
+                        { v: '',      label: 'לא יודע' },
+                      ] as const).map(o => (
+                        <button
+                          key={o.label}
+                          type="button"
+                          disabled={busy}
+                          onClick={() => setCommercial(o.v)}
+                          className={
+                            'inline-flex items-center justify-center text-[13px] font-bold leading-none px-2 py-2 rounded-sc-input border transition-colors ' +
+                            (commercial === o.v
+                              ? 'bg-sc-primary text-white border-sc-primary'
+                              : 'bg-white text-sc-text-secondary border-sc-border hover:border-sc-primary')
+                          }
+                        >
+                          {o.label}
+                        </button>
+                      ))}
+                    </div>
+                  </label>
+                </div>
+              </div>
+
               <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <button
                   type="submit"

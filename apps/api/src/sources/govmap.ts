@@ -179,28 +179,28 @@ export async function fetchAddress(addrText: string): Promise<SourceFetchResult>
   if (address.lot_sqm != null) {
     if (address.lot_sqm < 350) {
       signals.push({
-        kind: 'negative', weight: -20, source: 'govmap', category: 'lot_size',
+        kind: 'negative', weight: -20, source: 'govmap', category: 'density',
         title: 'מגרש קטן מאוד',
         description: `שטח המגרש הרשום הוא ${address.lot_sqm} מ"ר. פרויקט עצמאי כמעט בלתי אפשרי — נדרש חיבור למתחם רחב יותר.`,
         url: govmapUrl,
       })
     } else if (address.lot_sqm < 600) {
       signals.push({
-        kind: 'negative', weight: -10, source: 'govmap', category: 'lot_size',
+        kind: 'negative', weight: -10, source: 'govmap', category: 'density',
         title: 'מגרש קטן יחסית',
         description: `שטח המגרש ${address.lot_sqm} מ"ר. פרויקט עצמאי פחות אטרקטיבי — שווה לבחון חיבור עם שכנים.`,
         url: govmapUrl,
       })
     } else if (address.lot_sqm >= 1500) {
       signals.push({
-        kind: 'positive', weight: 5, source: 'govmap', category: 'lot_size',
+        kind: 'positive', weight: 5, source: 'govmap', category: 'density',
         title: 'מגרש גדול',
         description: `שטח המגרש ${address.lot_sqm} מ"ר — מספק מקום לבנייה עצמאית רחבה.`,
         url: govmapUrl,
       })
     } else {
       signals.push({
-        kind: 'neutral', weight: 0, source: 'govmap', category: 'lot_size',
+        kind: 'neutral', weight: 0, source: 'govmap', category: 'density',
         title: 'גודל מגרש סטנדרטי',
         description: `שטח המגרש ${address.lot_sqm} מ"ר — בטווח הרגיל לפרויקט.`,
         url: govmapUrl,

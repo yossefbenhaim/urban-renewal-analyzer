@@ -54,6 +54,11 @@ export interface EvaluateRequest {
   city: string
   street: string
   building_number: string
+  // Optional resident-supplied facts. When provided they drive the new
+  // `density` + `commercial_mix` categories. When missing the engine falls
+  // back to lot-only heuristics for density and skips commercial entirely.
+  apartments_count?: number
+  commercial?: CommercialLevel
 }
 
 // Categorized signal view — the report UI renders one row per category in
@@ -65,8 +70,11 @@ export type CategoryKey =
   | 'urban_renewal_area'  // מתחם מוכרז
   | 'projects_in_city'    // פרויקטים פעילים בעיר
   | 'municipal_policy'    // מדיניות עירונית
-  | 'lot_size'            // גודל מגרש
   | 'land_use'            // שימושי קרקע
+  | 'density'             // יחס שטח מגרש ↔ מס׳ דירות (חדש)
+  | 'commercial_mix'      // מורכבות מסחרית בבניין (חדש)
+
+export type CommercialLevel = 'none' | 'small' | 'large' | 'unknown'
 
 export interface Category {
   key: CategoryKey

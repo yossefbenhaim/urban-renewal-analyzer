@@ -29,9 +29,11 @@ import type {
 } from '../types.js'
 
 const Input = z.object({
-  city:            z.string().trim().min(1),
-  street:          z.string().trim().min(1),
-  building_number: z.string().trim().min(1),
+  city:             z.string().trim().min(1),
+  street:           z.string().trim().min(1),
+  building_number:  z.string().trim().min(1),
+  apartments_count: z.number().int().min(1).max(500).optional(),
+  commercial:       z.enum(['none', 'small', 'large', 'unknown']).optional(),
 })
 
 const DISCLAIMER =
@@ -65,8 +67,11 @@ export async function evaluateHandler(req: Request, res: Response) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'invalid input' })
     return
   }
-  const { city, street, building_number } = parsed.data
-  const key = cacheKey(city, street, building_number)
+  const { city, street, building_number, apartments_count, commercial } = parsed.data
+  // Cache key includes the user-supplied facts so different inputs for the
+  // same address produce distinct cached reports.
+  const key = cacheKey(city, street, building_number) +
+    `|${apartments_count ?? '_'}|${commercial ?? '_'}`
 
   const cached = reportCache.get(key)
   if (cached) {
@@ -119,7 +124,8 @@ export async function evaluateHandler(req: Request, res: Response) {
   // Deterministic rubric — same inputs always produce the same numbers,
   // and each source contributes a fixed share of the report regardless of
   // which signals fired this run. Defined later inside `response` below.
-  const rubric  = evaluateRubric(ranked, { lot_sqm: address.lot_sqm }, [])
+  const userInputs = { apartments_count, commercial }
+  const rubric  = evaluateRubric(ranked, { lot_sqm: address.lot_sqm }, [], userInputs)
   const score   = rubric.score
   const bucket  = bucketize(score)
   const engineCtx = { address, signals: ranked, score, bucket }
@@ -157,7 +163,7 @@ export async function evaluateHandler(req: Request, res: Response) {
   const sourcesUsed = Array.from(sourcesByName.values())
   // Re-run the rubric with the now-known sourcesUsed so the notes on
   // `source_contributions` can flag failed sources accurately.
-  const rubric2 = evaluateRubric(ranked, { lot_sqm: address.lot_sqm }, sourcesUsed)
+  const rubric2 = evaluateRubric(ranked, { lot_sqm: address.lot_sqm }, sourcesUsed, userInputs)
 
   const response: EvaluateResponse = {
     address,

@@ -14,8 +14,11 @@ export type CategoryKey =
   | 'urban_renewal_area'
   | 'projects_in_city'
   | 'municipal_policy'
-  | 'lot_size'
   | 'land_use'
+  | 'density'
+  | 'commercial_mix'
+
+export type CommercialLevel = 'none' | 'small' | 'large' | 'unknown'
 
 export interface Signal {
   kind: SignalKind

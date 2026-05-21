@@ -16,7 +16,7 @@
 // Same address ⇒ same numbers ⇒ trustable comparisons across runs.
 
 import type {
-  Category, CategoryKey, ResolvedAddress, Signal, SourceContribution, SourceName, SourceResult,
+  Category, CategoryKey, CommercialLevel, ResolvedAddress, Signal, SourceContribution, SourceName, SourceResult,
 } from '../types.js'
 
 // ─── Fixed category weights ─────────────────────────────────────────
@@ -25,12 +25,13 @@ import type {
 // physical/policy/usage.
 
 export const CATEGORY_WEIGHTS: Record<CategoryKey, number> = {
-  planning_schemes:   25,
-  urban_renewal_area: 20,
-  municipal_policy:   15,
-  land_use:           15,
-  lot_size:           15,
-  projects_in_city:   10,
+  planning_schemes:   20,
+  urban_renewal_area: 18,
+  municipal_policy:   12,
+  land_use:           12,
+  density:            18,   // ↑ replaces stand-alone lot_size — now uses ratio
+  commercial_mix:      8,   // ← new, complexity flag
+  projects_in_city:   12,
 }
 
 // Which source "owns" each category. Used to compute the deterministic
@@ -41,7 +42,8 @@ export const CATEGORY_SOURCE: Record<CategoryKey, SourceName> = {
   municipal_policy:   'data.gov.il',
   projects_in_city:   'data.gov.il',
   land_use:           'mavat.landuse',
-  lot_size:           'govmap',
+  density:            'govmap',          // lot size from GovMap + user-supplied apartments
+  commercial_mix:     'govmap',          // category is driven by user input
 }
 
 const ORDER: CategoryKey[] = [
@@ -50,7 +52,8 @@ const ORDER: CategoryKey[] = [
   'projects_in_city',
   'municipal_policy',
   'land_use',
-  'lot_size',
+  'density',
+  'commercial_mix',
 ]
 
 const TITLES: Record<CategoryKey, string> = {
@@ -59,7 +62,8 @@ const TITLES: Record<CategoryKey, string> = {
   projects_in_city:    'פרויקטים פעילים באזור',
   municipal_policy:    'מדיניות עירונית',
   land_use:            'שימושי קרקע',
-  lot_size:            'גודל מגרש',
+  density:             'יחס מגרש ↔ דירות',
+  commercial_mix:      'מורכבות מסחרית',
 }
 
 const PLACEHOLDER_IMPACT: Record<CategoryKey, string> = {
@@ -68,7 +72,8 @@ const PLACEHOLDER_IMPACT: Record<CategoryKey, string> = {
   projects_in_city:   'אין פרויקטי התחדשות בביצוע כעת באזור.',
   municipal_policy:   'אין רשימת התחדשות מוכרזת בעיר.',
   land_use:           'יעוד הקרקע לא נטען — אין השפעה ידועה על ההיתכנות.',
-  lot_size:           'גודל המגרש לא נטען.',
+  density:            'לא צוין מספר דירות — ההערכה מבוססת על שטח המגרש בלבד.',
+  commercial_mix:     'לא צוין האם יש מסחרי בבניין — קטגוריה זו זמינה לאחר שתסמן.',
 }
 
 // ─── Per-category rubrics ───────────────────────────────────────────
@@ -173,13 +178,73 @@ function rubricLotSize(lotSqm: number | undefined): RubricOutcome {
   return                            { subscore:  15, label: `${lotSqm} מ"ר — קטן מאוד`, emoji: '⚠️', found: true }
 }
 
+// Density rubric — the appraiser-style "is there room to build" check.
+// Uses the m² / apartment ratio when the user supplies apartment count;
+// falls back to lot-only when count is missing.
+//
+// Reference points from the discussion:
+//   300 m² × 12 dirot →  25 m²/dira → קשה מאוד
+//   600 m² × 20 dirot →  30 m²/dira → בעייתי
+//   900 m² ×  8 dirot → 112 m²/dira → טוב
+//  1200 m² × 10 dirot → 120 m²/dira → טוב מאוד
+function rubricDensity(lotSqm: number | undefined, aptCount: number | undefined): RubricOutcome {
+  // Fallback: no apartment count → use lot-size rubric but tag the label
+  // so the UI explains why density is approximate.
+  if (aptCount == null || aptCount <= 0) {
+    const r = rubricLotSize(lotSqm)
+    return { ...r, label: r.label + ' · מבוסס על שטח בלבד (מס׳ דירות לא צוין)', found: r.found }
+  }
+  if (lotSqm == null || lotSqm <= 0) {
+    return { subscore: 50, label: `${aptCount} דירות · שטח מגרש לא נטען`, emoji: '·', found: false }
+  }
+  const ratio = lotSqm / aptCount
+  const r = Math.round(ratio)
+  const tag = `${lotSqm} מ"ר ÷ ${aptCount} דירות = ${r} מ"ר לדירה`
+  if (ratio >= 150)  return { subscore: 100, label: `${tag} — מצוין`,        emoji: '✅', detail: tag, found: true }
+  if (ratio >= 100)  return { subscore:  85, label: `${tag} — טוב מאוד`,     emoji: '✅', detail: tag, found: true }
+  if (ratio >=  75)  return { subscore:  70, label: `${tag} — טוב`,          emoji: '✅', detail: tag, found: true }
+  if (ratio >=  50)  return { subscore:  50, label: `${tag} — סביר`,         emoji: '·', detail: tag, found: true }
+  if (ratio >=  30)  return { subscore:  30, label: `${tag} — בעייתי`,       emoji: '⚠️', detail: tag, found: true }
+  return                    { subscore:  10, label: `${tag} — קשה מאוד`,     emoji: '⚠️', detail: tag, found: true }
+}
+
+// Commercial-mix rubric — appraiser flag, not a blocker.
+// User-supplied: 'none' / 'small' / 'large' / 'unknown'.
+function rubricCommercialMix(level: CommercialLevel | undefined): RubricOutcome {
+  switch (level) {
+    case 'none':
+      return {
+        subscore: 100, label: 'אין שטחי מסחר — תהליך פשוט יותר', emoji: '✅', found: true,
+        detail: 'בניין מגורים בלבד. תהליך פינוי-בינוי / תמ"א ללא סיבוכים תכנוניים מסחריים.',
+      }
+    case 'small':
+      return {
+        subscore: 70, label: 'מסחר קטן בקומת קרקע — מורכבות נמוכה', emoji: '·', found: true,
+        detail: 'חנות קטנה או שתיים בקומת קרקע. דורש פתרון תכנוני אך לא חריג. קיימים פרויקטים שבוצעו במצב דומה.',
+      }
+    case 'large':
+      return {
+        subscore: 35, label: 'שטחי מסחר משמעותיים — מורכבות גבוהה', emoji: '⚠️', found: true,
+        detail: 'חנויות גדולות, משרדים או מתחם מסחרי משולב. יתכן צורך בפתרונות תכנוניים ומשפטיים מורכבים יותר. הפרויקט עדיין אפשרי — קיימים פרויקטים שבוצעו גם במבנים עם מסחר, אך מומלץ לקחת ייעוץ משפטי מוקדם.',
+      }
+    case 'unknown':
+    case undefined:
+    default:
+      return {
+        subscore: 70, label: 'לא צוין', emoji: '·', found: false,
+        detail: 'סמן אם יש מסחר בבניין כדי לקבל הערכה מדויקת יותר של המורכבות.',
+      }
+  }
+}
+
 const SUMMARY_HEAD: Record<CategoryKey, string> = {
   planning_schemes:   'תכנון וזכויות בנייה',
   urban_renewal_area: 'מתחם התחדשות מוכרז',
   projects_in_city:   'פרויקטים פעילים באזור',
   municipal_policy:   'מדיניות עירונית',
   land_use:           'שימושי קרקע',
-  lot_size:           'גודל מגרש',
+  density:            'יחס מגרש ↔ דירות',
+  commercial_mix:     'מורכבות מסחרית',
 }
 
 function impactCopy(key: CategoryKey, found: boolean): string {
@@ -190,7 +255,8 @@ function impactCopy(key: CategoryKey, found: boolean): string {
     case 'projects_in_city':   return 'אזור מתעורר — יזמים נכנסים אקטיבית.'
     case 'municipal_policy':   return 'העירייה תומכת באופן פעיל — תהליכים מהירים יותר.'
     case 'land_use':           return 'יעוד הקרקע משפיע ישירות על האפשרות לבנייה חדשה.'
-    case 'lot_size':           return 'גודל המגרש משפיע על האטרקטיביות הכלכלית של פרויקט עצמאי.'
+    case 'density':            return 'יחס שטח המגרש למספר הדירות קובע אם פרויקט עצמאי כלכלי או נדרש חיבור למתחם.'
+    case 'commercial_mix':     return 'שטחי מסחר בבניין מוסיפים מורכבות תכנונית ומשפטית — לא חוסמים אך מצריכים פתרונות.'
   }
 }
 
@@ -202,10 +268,16 @@ export interface RubricResult {
   source_contributions: SourceContribution[]
 }
 
+export interface UserInputs {
+  apartments_count?: number
+  commercial?: CommercialLevel
+}
+
 export function evaluateRubric(
   signals: Signal[],
   address: Pick<ResolvedAddress, 'lot_sqm'>,
   sourcesUsed: SourceResult[] = [],
+  userInputs: UserInputs = {},
 ): RubricResult {
   // Group by category once.
   const byKey = new Map<CategoryKey, Signal[]>()
@@ -223,7 +295,8 @@ export function evaluateRubric(
     projects_in_city:   rubricProjectsInCity(byKey.get('projects_in_city')     ?? []),
     municipal_policy:   rubricMunicipalPolicy(byKey.get('municipal_policy')   ?? []),
     land_use:           rubricLandUse(byKey.get('land_use')                   ?? []),
-    lot_size:           rubricLotSize(address.lot_sqm),
+    density:            rubricDensity(address.lot_sqm, userInputs.apartments_count),
+    commercial_mix:     rubricCommercialMix(userInputs.commercial),
   }
 
   // Build Category[] rows + accumulate the weighted score. We keep a
