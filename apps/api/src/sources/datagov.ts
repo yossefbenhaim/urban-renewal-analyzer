@@ -36,7 +36,11 @@ function clean(value?: string | number | null): string {
 export async function fetchCityUrbanRenewal(city: string): Promise<SourceFetchResult> {
   if (!city) return { ok: true, signals: [] }
   const url = `${CKAN_URL}?resource_id=${RESOURCE_ID}&q=${encodeURIComponent(city)}&limit=100`
-  const res = await fetchJson<CkanResponse>(url, { timeoutMs: 4000 })
+  // gov.il CKAN is intermittently slow (multi-second responses, occasional
+  // 5xx). 10 s + 2 retries makes the same-address result deterministic across
+  // runs — earlier 4 s/1 retry caused score swings when one of three
+  // attempts timed out.
+  const res = await fetchJson<CkanResponse>(url, { timeoutMs: 10_000, retries: 2 })
   const records = (res?.result?.records ?? [])
     // CKAN's `q` matches any field — filter to records whose Yeshuv actually
     // includes the requested city (avoids matching plans where the city

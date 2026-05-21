@@ -73,6 +73,7 @@ export interface Category {
   title: string                 // "זכויות בנייה" etc.
   summary: string               // one-sentence finding
   impact: string                // one-sentence "what it means for the building"
+  detail?: string               // specific data — plan IDs, m², counts. Rendered below impact.
   weight_contribution: number   // signed weight added to the raw score
   weight_pct: number            // |weight| / sum(|weights|) — 0..100
   source: SourceName
@@ -86,7 +87,8 @@ export interface SourceContribution {
   total_weight: number          // |+| + |−|
   pct_of_total: number          // share of the report's total |weight|
   signals_count: number         // total signals emitted (incl. neutrals)
-  note?: string                 // shown when total_weight === 0 — explains why the source contributed nothing to the score
+  failed: boolean               // true when the source timed out / 5xx'd — contributed nothing because it never responded
+  note?: string                 // user-facing explanation when failed or contributed 0
 }
 
 export interface EvaluateResponse {

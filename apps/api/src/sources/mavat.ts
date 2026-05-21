@@ -57,7 +57,7 @@ export async function fetchPlanningSchemes(
   const url =
     `${XPLAN_LAYER_QUERY}?geometry=${itmX},${itmY}` +
     '&geometryType=esriGeometryPoint&inSR=2039&outFields=*&returnGeometry=false&f=json'
-  const res = await fetchJson<XplanResponse>(url, { timeoutMs: 4000 })
+  const res = await fetchJson<XplanResponse>(url, { timeoutMs: 8000, retries: 2 })
   const feats = res?.features ?? []
 
   if (feats.length === 0) {

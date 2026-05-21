@@ -5,9 +5,13 @@
 import { LRUCache } from 'lru-cache'
 import type { EvaluateResponse } from '../types.js'
 
+// 24 h TTL — gov source datasets change slowly (plans, declared areas,
+// city policy). Longer TTL ALSO makes repeated lookups deterministic for
+// the user: same address, same score, no surprise variance when one
+// upstream source is transiently slow.
 export const reportCache = new LRUCache<string, EvaluateResponse>({
   max: 500,
-  ttl: 60 * 60 * 1000,
+  ttl: 24 * 60 * 60 * 1000,
 })
 
 export function cacheKey(city: string, street: string, number: string): string {

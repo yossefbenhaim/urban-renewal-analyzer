@@ -6,7 +6,7 @@
 //     useful for the "X% of the score came from MAVAT" footer.
 
 import type {
-  Category, CategoryKey, Signal, SourceContribution, SourceName,
+  Category, CategoryKey, Signal, SourceContribution, SourceName, SourceResult,
 } from '../types.js'
 
 // Stable order — matches the order the user pasted in their reference report.
@@ -84,12 +84,20 @@ export function categorize(signals: Signal[]): Category[] {
   for (const key of ORDER) {
     const s = byKey.get(key)
     if (s) {
+      const generic = impactFor(s)
+      // When impactFor returns generic copy, show signal.description as the
+      // concrete `detail` so users still see the underlying numbers / plan
+      // IDs / city counts the source actually returned.
+      const detail = generic && s.description && s.description !== generic
+        ? s.description
+        : undefined
       out.push({
         key,
         emoji: s.kind === 'positive' ? '✅' : s.kind === 'negative' ? '⚠️' : '·',
         title: TITLES[key],
         summary: s.title,
-        impact: impactFor(s) || s.description,
+        impact: generic || s.description,
+        detail,
         weight_contribution: s.weight,
         weight_pct: Math.round((Math.abs(s.weight) / totalWeight) * 100),
         source: s.source,
@@ -119,7 +127,17 @@ const SOURCE_NEUTRAL_NOTE: Record<SourceName, string> = {
   'data.gov.il':  'בדקנו את ערכות הנתונים של data.gov.il — אף ערכת מידע לא הוסיפה משקל לציון.',
 }
 
-export function sourceContributions(signals: Signal[]): SourceContribution[] {
+const SOURCE_FAILED_NOTE: Record<SourceName, string> = {
+  'govmap':       'GovMap לא הגיב בזמן — לא הצלחנו לבדוק מתחם מוכרז / גוש-חלקה / גודל מגרש בריצה הזו. נסו שוב בעוד דקה.',
+  'mavat.landuse':'שכבת שימושי הקרקע של מבא"ת לא הגיבה בזמן. הציון מבוסס על שאר המקורות בלבד.',
+  'mavat':        'מאגר התכניות של מינהל התכנון לא הגיב בזמן. ייתכן שתכניות פעילות באזור לא נכללו בציון הנוכחי.',
+  'data.gov.il':  'data.gov.il לא הגיב בזמן (CKAN איטי / 5xx). הציון עלול להשתנות בריצה הבאה כשהמקור יגיב.',
+}
+
+export function sourceContributions(
+  signals: Signal[],
+  sourcesUsed: SourceResult[] = [],
+): SourceContribution[] {
   const totals: Record<string, { pos: number; neg: number; count: number }> = {}
   for (const s of signals) {
     const k = s.source
@@ -128,9 +146,21 @@ export function sourceContributions(signals: Signal[]): SourceContribution[] {
     if (s.weight > 0) totals[k].pos += s.weight
     if (s.weight < 0) totals[k].neg += Math.abs(s.weight)
   }
+  // Failed sources emitted no signals, so they don't appear in `totals`. Add
+  // a zero-weight placeholder so the UI can render a clear "didn't respond"
+  // row instead of silently omitting the source — the user must see WHY a
+  // score is missing weight.
+  const failedStatuses = new Set<SourceName>()
+  for (const s of sourcesUsed) {
+    if (s.status === 'failed' && !totals[s.name]) failedStatuses.add(s.name)
+  }
+  for (const name of failedStatuses) {
+    totals[name] = { pos: 0, neg: 0, count: 0 }
+  }
   const grandTotal = Object.values(totals).reduce((a, b) => a + b.pos + b.neg, 0) || 1
   return Object.entries(totals).map(([name, v]) => {
     const total = v.pos + v.neg
+    const failed = failedStatuses.has(name as SourceName)
     return {
       name: name as SourceName,
       positive_weight: v.pos,
@@ -138,7 +168,12 @@ export function sourceContributions(signals: Signal[]): SourceContribution[] {
       total_weight: total,
       pct_of_total: Math.round((total / grandTotal) * 100),
       signals_count: v.count,
-      note: total === 0 ? SOURCE_NEUTRAL_NOTE[name as SourceName] : undefined,
+      failed,
+      note: failed
+        ? SOURCE_FAILED_NOTE[name as SourceName]
+        : total === 0
+          ? SOURCE_NEUTRAL_NOTE[name as SourceName]
+          : undefined,
     }
   }).sort((a, b) => b.total_weight - a.total_weight)
 }

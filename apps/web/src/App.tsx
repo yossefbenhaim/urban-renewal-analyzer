@@ -254,6 +254,11 @@ function CategoryRow({ c }: { c: Category }) {
         <div className="text-[11px] text-sc-text-secondary leading-relaxed mt-0.5">
           {c.impact}
         </div>
+        {c.detail && (
+          <div className="mt-1.5 text-[11px] text-sc-text leading-relaxed bg-sc-bg/60 border border-sc-border rounded-sc-input px-2.5 py-1.5">
+            {c.detail}
+          </div>
+        )}
         <div className="text-[10px] text-sc-text-muted mt-1">מקור: {sourceLabel(c.source)}</div>
       </div>
     </li>
@@ -270,26 +275,35 @@ function SourceBreakdown({ contributions }: { contributions: SourceContribution[
       <ul className="m-0 p-0 space-y-2.5">
         {contributions.map(s => {
           const neutral = s.total_weight === 0
+          const badgeCls = s.failed
+            ? 'bg-sc-danger/15 text-sc-danger'
+            : 'bg-sc-text-muted/15 text-sc-text-muted'
+          const badgeText = s.failed ? 'לא הגיב' : 'ללא תרומה לציון'
           return (
             <li key={s.name} className="list-none">
               <div className="flex items-center justify-between text-[12px] mb-1 gap-2">
                 <span className="font-extrabold text-sc-text inline-flex items-center gap-1.5">
                   {sourceLabel(s.name)}
                   {neutral && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-sc-pill bg-sc-text-muted/15 text-sc-text-muted">
-                      ללא תרומה לציון
+                    <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-sc-pill ${badgeCls}`}>
+                      {badgeText}
                     </span>
                   )}
                 </span>
                 <span className="text-sc-text-muted tabular-nums">
                   {neutral
-                    ? <>נבדקו {s.signals_count} נקודות</>
+                    ? (s.failed ? <>שגיאה / טיים-אאוט</> : <>נבדקו {s.signals_count} נקודות</>)
                     : <>{s.pct_of_total}% · {s.positive_weight > 0 ? '+' : ''}{s.positive_weight}{s.negative_weight > 0 ? <> / −{s.negative_weight}</> : null}</>}
                 </span>
               </div>
               {neutral ? (
                 s.note && (
-                  <div className="text-[11px] text-sc-text-muted leading-relaxed bg-sc-bg rounded-sc-input px-2.5 py-1.5 border border-sc-border">
+                  <div className={
+                    'text-[11px] leading-relaxed rounded-sc-input px-2.5 py-1.5 border ' +
+                    (s.failed
+                      ? 'text-sc-danger bg-sc-danger/5 border-sc-danger/30'
+                      : 'text-sc-text-muted bg-sc-bg border-sc-border')
+                  }>
                     {s.note}
                   </div>
                 )

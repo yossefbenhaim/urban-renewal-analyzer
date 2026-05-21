@@ -32,6 +32,7 @@ export interface Category {
   title: string
   summary: string
   impact: string
+  detail?: string
   weight_contribution: number
   weight_pct: number
   source: SourceName
@@ -45,6 +46,7 @@ export interface SourceContribution {
   total_weight: number
   pct_of_total: number
   signals_count: number
+  failed: boolean
   note?: string
 }
 

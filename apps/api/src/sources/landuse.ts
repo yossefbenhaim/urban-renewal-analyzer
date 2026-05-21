@@ -40,7 +40,7 @@ export async function fetchLandUse(itmX: number, itmY: number): Promise<SourceFe
   const url =
     `${LANDUSE_URL}?geometry=${itmX},${itmY}` +
     '&geometryType=esriGeometryPoint&inSR=2039&outFields=mavat_name,legal_area&returnGeometry=false&f=json'
-  const res = await fetchJson<XplanResponse>(url, { timeoutMs: 4000 })
+  const res = await fetchJson<XplanResponse>(url, { timeoutMs: 8000, retries: 2 })
   const feats = res?.features ?? []
   if (feats.length === 0) {
     return {

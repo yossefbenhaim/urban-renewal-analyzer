@@ -152,19 +152,20 @@ export async function evaluateHandler(req: Request, res: Response) {
     }
   }
 
+  const sourcesUsed = Array.from(sourcesByName.values())
   const response: EvaluateResponse = {
     address,
     score,
     bucket,
     signals: ranked,
     categories: categorize(ranked),
-    source_contributions: sourceContributions(ranked),
+    source_contributions: sourceContributions(ranked, sourcesUsed),
     summary_he: summaryHe(engineCtx),
     recommended_track: track,
     single_building_feasible: singleBuildingFeasible(engineCtx),
     expected_time_years: expectedTimeYears(track),
     recommendations: recommendations(engineCtx, track),
-    sources_used: Array.from(sourcesByName.values()),
+    sources_used: sourcesUsed,
     generated_at: new Date().toISOString(),
     disclaimer: DISCLAIMER,
   }
