@@ -59,9 +59,9 @@ export function App() {
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
-      <main className="flex-1 px-4 sm:px-6 py-6 sm:py-10 max-w-[1100px] w-full mx-auto">
+      <main className="flex-1 px-4 sm:px-6 py-4 sm:py-6 max-w-[1100px] w-full mx-auto">
         <Hero />
-        <form onSubmit={onEvaluate} className="mt-6 bg-white rounded-sc-card border border-sc-border shadow-sm p-4 sm:p-5">
+        <form onSubmit={onEvaluate} className="mt-4 bg-white rounded-sc-card border border-sc-border shadow-sm p-3 sm:p-4">
           <AddressPicker value={addr} onChange={setAddr} disabled={busy} />
           <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             <button
@@ -96,13 +96,13 @@ export function App() {
 function Header() {
   return (
     <header className="bg-gradient-to-l from-sc-navy to-sc-primary text-white shadow-sm">
-      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-4 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-sc-input bg-white/20 grid place-items-center">
-          <Building2 size={20} />
+      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-2.5 flex items-center gap-2.5">
+        <div className="w-8 h-8 rounded-sc-input bg-white/20 grid place-items-center">
+          <Building2 size={18} />
         </div>
         <div className="min-w-0">
-          <div className="text-[16px] font-extrabold leading-tight">Pre-Feasibility AI</div>
-          <div className="text-[11px] opacity-85">הערכת היתכנות פינוי-בינוי לפי כתובת</div>
+          <div className="text-[15px] font-extrabold leading-tight">Pre-Feasibility AI</div>
+          <div className="text-[10.5px] opacity-85">הערכת היתכנות פינוי-בינוי לפי כתובת</div>
         </div>
       </div>
     </header>
@@ -112,16 +112,15 @@ function Header() {
 function Hero() {
   return (
     <section className="text-center sm:text-start">
-      <div className="inline-flex items-center gap-1.5 bg-sc-light-blue text-sc-primary text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-sc-pill mb-3">
+      <div className="inline-flex items-center gap-1.5 bg-sc-light-blue text-sc-primary text-[11px] font-bold uppercase tracking-wider px-3 py-0.5 rounded-sc-pill mb-2">
         <Sparkles size={12} /> חינמי
       </div>
-      <h1 className="text-[24px] sm:text-[34px] font-extrabold text-sc-text leading-tight mb-2">
+      <h1 className="text-[22px] sm:text-[28px] font-extrabold text-sc-text leading-tight mb-1.5">
         האם הבניין שלך מתאים לפינוי-בינוי?
       </h1>
-      <p className="text-[14px] sm:text-[15px] text-sc-text-secondary max-w-[640px] leading-relaxed">
-        הזן כתובת ונחזיר לך הערכה ראשונית מבוססת נתונים פתוחים — תכניות בניין-עיר,
-        מתחמי התחדשות מוכרזים, וזכויות בנייה — מתורגמים לסיכוי, מסלול מומלץ
-        ולוח זמנים צפוי.
+      <p className="text-[13px] sm:text-[14px] text-sc-text-secondary max-w-[640px] leading-snug">
+        הזן כתובת ונחזיר לך הערכה ראשונית מבוססת נתונים פתוחים — תכניות,
+        מתחמים מוכרזים וזכויות בנייה — מתורגמים לסיכוי, מסלול ולוח זמנים.
       </p>
     </section>
   )
@@ -129,9 +128,10 @@ function Hero() {
 
 function Footer() {
   return (
-    <footer className="mt-12 border-t border-sc-border bg-white">
-      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-6 text-[11px] text-sc-text-muted">
-        מבוסס על נתוני GovMap, מינהל התכנון (MAVAT), ו-data.gov.il.
+    <footer className="mt-6 border-t border-sc-border bg-white">
+      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-3 text-[10.5px] text-sc-text-muted leading-snug">
+        מבוסס על 4 מקורות ציבוריים — GovMap (גוש/חלקה + מתחמי התחדשות מוכרזים),
+        מינהל התכנון (MAVAT), שכבת שימושי קרקע במבא"ת, ו-data.gov.il.
         אינו מהווה חוות דעת אדריכלית, משפטית או שמאית רשמית.
       </div>
     </footer>
@@ -142,19 +142,19 @@ function Footer() {
 
 function Marketing() {
   const cards = [
-    { icon: <ShieldCheck size={18} />,  title: 'מבוסס נתונים בלבד', body: 'אין ניחושים. כל איתות מקורו במקור ציבורי מאומת.' },
-    { icon: <Building2 size={18} />,    title: 'תוצאה תוך 5 שניות', body: 'אנחנו מצליבים 3 מקורות במקביל ומחזירים תמונה ברורה.' },
-    { icon: <Crown size={18} />,        title: 'תאמת מול אנשי מקצוע', body: 'הכלי הוא Pre-Feasibility — בשלב מאוחר יותר אדריכל ושמאי יאמתו.' },
+    { icon: <ShieldCheck size={16} />,  title: 'מבוסס נתונים בלבד', body: 'אין ניחושים. כל איתות מקורו במקור ציבורי מאומת.' },
+    { icon: <Building2 size={16} />,    title: '4 מקורות · 6 שכבות מידע', body: 'GovMap, מינהל התכנון, שימושי קרקע במבא"ת, ו-data.gov.il — מצליבים במקביל לתמונה אחת ברורה.' },
+    { icon: <Crown size={16} />,        title: 'תאמת מול אנשי מקצוע', body: 'Pre-Feasibility בלבד — אדריכל ושמאי יאמתו בשלב מאוחר יותר.' },
   ]
   return (
-    <section className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <section className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
       {cards.map(c => (
-        <div key={c.title} className="bg-white border border-sc-border rounded-sc-card p-4">
-          <div className="w-9 h-9 rounded-sc-input bg-sc-light-blue text-sc-primary grid place-items-center mb-2">
+        <div key={c.title} className="bg-white border border-sc-border rounded-sc-card p-3">
+          <div className="w-8 h-8 rounded-sc-input bg-sc-light-blue text-sc-primary grid place-items-center mb-1.5">
             {c.icon}
           </div>
-          <div className="text-[14px] font-extrabold text-sc-text mb-1">{c.title}</div>
-          <div className="text-[12px] text-sc-text-secondary leading-relaxed">{c.body}</div>
+          <div className="text-[13px] font-extrabold text-sc-text mb-1 leading-tight">{c.title}</div>
+          <div className="text-[11.5px] text-sc-text-secondary leading-snug">{c.body}</div>
         </div>
       ))}
     </section>
@@ -175,9 +175,9 @@ function ResultSection({ busy, report }: { busy: boolean; report: EvaluateRespon
           בודקים את הכתובת
         </div>
         <MaturityGauge phase="loading" size={240} />
-        <div className="mt-5 text-[12px] text-sc-text-muted text-center max-w-[340px] leading-relaxed px-4">
-          מצליבים מקורות פתוחים מ-GovMap, מינהל התכנון, ו-data.gov.il —
-          התהליך לוקח כ-5 שניות.
+        <div className="mt-5 text-[12px] text-sc-text-muted text-center max-w-[380px] leading-relaxed px-4">
+          מצליבים 4 מקורות פתוחים (GovMap, MAVAT, שימושי קרקע, data.gov.il)
+          על פני 6 שכבות מידע — התהליך לוקח כ-5 שניות.
         </div>
       </div>
     )

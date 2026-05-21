@@ -30,9 +30,10 @@ const LOADING_MS  = 5000
 const LOADING_CAP = 100   // sweep completes a full ring; a ✓ marks the end-of-load
 const SUB_LABELS  = [
   'מתחבר ל-GovMap…',
-  'מאתר גוש וחלקה…',
-  'סורק תכניות במינהל התכנון…',
+  'מאתר גוש, חלקה ושטח מגרש…',
   'בודק מתחמי התחדשות מוכרזים…',
+  'סורק תכניות במינהל התכנון…',
+  'בודק שימושי קרקע במבא"ת…',
   'מצליב נתוני data.gov.il…',
   'מחשב את הציון…',
 ]
