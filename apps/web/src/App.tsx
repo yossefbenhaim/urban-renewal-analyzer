@@ -383,10 +383,14 @@ function ExportBar({ data }: { data: EvaluateResponse }) {
       const usableH = pageH - margin * 2
 
       // Each top-level child of #report-root that's NOT the no-print toolbar
-      // is rendered on its own dedicated page. Within a single section we
-      // paginate at row boundaries (the `data-pdf-block` elements that each
-      // <CategoryRow> / <SourceRow> already declares) so a category bullet
-      // never gets cut in half across two pages.
+      // is rendered on its own dedicated A4 page. Strategy:
+      //   - Screenshot the section.
+      //   - If it fits the page → place it natural size, vertically centred.
+      //   - If it's taller than the page → scale it down proportionally so
+      //     the WHOLE section fits on one page. No cutting, no overlaps —
+      //     the worst-case is a slightly smaller font for very long
+      //     sections (in practice no section has > 7 rows so the scale
+      //     factor stays comfortable).
       const sections = Array.from(node.children)
         .filter((c): c is HTMLElement =>
           c instanceof HTMLElement && !c.classList.contains('no-print'),
@@ -394,70 +398,27 @@ function ExportBar({ data }: { data: EvaluateResponse }) {
 
       let pageStarted = false
       for (const section of sections) {
-        // Try to split this section into row-level blocks. If none are
-        // declared, the whole section is one block.
-        const declared = section.querySelectorAll<HTMLElement>('[data-pdf-block]')
-        const blocks: HTMLElement[] = declared.length > 0
-          ? [section, ...Array.from(declared)]
-          : [section]
+        const canvas = await domToCanvas(section, { scale: 2, backgroundColor: '#ffffff' })
+        const ratio = canvas.width / canvas.height
 
-        // We use the section snapshot as the "primary" block — if it fits on
-        // one page we render just that. Otherwise render the row blocks
-        // sequentially after first emitting the section header.
-        const primary = await domToCanvas(section, { scale: 2, backgroundColor: '#ffffff' })
-        const primaryH = (primary.height * usableW) / primary.width
+        // Fit-to-page: start by maximising width, then clamp height.
+        let imgW = usableW
+        let imgH = imgW / ratio
+        if (imgH > usableH) {
+          imgH = usableH
+          imgW = imgH * ratio
+        }
 
         if (pageStarted) pdf.addPage()
         pageStarted = true
 
-        if (primaryH <= usableH) {
-          const yOff = margin + Math.max(0, (usableH - primaryH) / 4)
-          pdf.addImage(
-            primary.toDataURL('image/jpeg', 0.92), 'JPEG',
-            margin, yOff, usableW, primaryH, undefined, 'FAST',
-          )
-          continue
-        }
-
-        // Section is taller than one page. If we have row-level blocks,
-        // pack them; otherwise paginate the screenshot itself.
-        if (declared.length === 0) {
-          let yConsumed = 0
-          let pageIdx = 0
-          while (yConsumed < primaryH) {
-            if (pageIdx > 0) pdf.addPage()
-            pdf.addImage(
-              primary.toDataURL('image/jpeg', 0.92), 'JPEG',
-              margin, margin - yConsumed, usableW, primaryH, undefined, 'FAST',
-            )
-            yConsumed += usableH
-            pageIdx += 1
-          }
-          continue
-        }
-
-        // Row-aware pagination: render each block, pack onto pages.
-        let cursorY = margin
-        let onPage = true
-        for (const blk of blocks.slice(1)) {     // skip the section wrapper itself
-          const blockCanvas = await domToCanvas(blk, { scale: 2, backgroundColor: '#ffffff' })
-          const blockH = (blockCanvas.height * usableW) / blockCanvas.width
-          if (cursorY + blockH > usableH + margin) {
-            pdf.addPage()
-            cursorY = margin
-            onPage = true
-          }
-          if (!onPage) {
-            pdf.addPage()
-            cursorY = margin
-            onPage = true
-          }
-          pdf.addImage(
-            blockCanvas.toDataURL('image/jpeg', 0.92), 'JPEG',
-            margin, cursorY, usableW, blockH, undefined, 'FAST',
-          )
-          cursorY += blockH + 4
-        }
+        // Centre the image both horizontally and vertically on the page.
+        const xOff = margin + Math.max(0, (usableW - imgW) / 2)
+        const yOff = margin + Math.max(0, (usableH - imgH) / 2)
+        pdf.addImage(
+          canvas.toDataURL('image/jpeg', 0.92), 'JPEG',
+          xOff, yOff, imgW, imgH, undefined, 'FAST',
+        )
       }
 
       pdf.save(`feasibility-${slugifyAddress(data.address.formatted)}.pdf`)
