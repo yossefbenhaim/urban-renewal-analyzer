@@ -279,10 +279,15 @@ function ScoreHero({ data }: { data: EvaluateResponse }) {
 }
 
 // ─── ExportBar: single "Download PDF" action ─────────────────────────
-// Direct client-side PDF generation via html2canvas → jsPDF. We screenshot
-// #report-root, paginate the resulting image across A4 portrait pages, and
-// save the file with a slugified address as the filename. No browser print
-// dialog, no extra clicks.
+// Direct client-side PDF generation via modern-screenshot → jsPDF. We
+// screenshot #report-root, paginate the resulting image across A4 portrait
+// pages, and save the file with a slugified address as the filename.
+//
+// modern-screenshot delegates the actual rendering to the browser via SVG
+// foreignObject, so every CSS rule (flex centering, line-height, mixed font
+// sizes, RTL Hebrew, drop-shadow filters, gradients) renders *exactly* as the
+// user sees it on the live page. html2canvas — used here previously — runs
+// its own text-layout pipeline that mis-aligned text inside coloured pills.
 
 function ExportBar({ data }: { data: EvaluateResponse }) {
   const [busy, setBusy] = useState(false)
@@ -298,29 +303,16 @@ function ExportBar({ data }: { data: EvaluateResponse }) {
       if (document.fonts?.ready) await document.fonts.ready
       await new Promise(r => setTimeout(r, 1300))
 
-      const [{ default: html2canvas }, jsPdfMod] = await Promise.all([
-        import('html2canvas'),
+      const [{ domToCanvas }, jsPdfMod] = await Promise.all([
+        import('modern-screenshot'),
         import('jspdf'),
       ])
       // jsPDF ships both a default export and a named one; favour the named.
       const JsPDF = (jsPdfMod as any).jsPDF ?? (jsPdfMod as any).default
 
-      const canvas = await html2canvas(node, {
+      const canvas = await domToCanvas(node, {
         scale: 2,
         backgroundColor: '#ffffff',
-        useCORS: true,
-        logging: false,
-        onclone: (doc: Document) => {
-          // html2canvas mis-renders `filter: drop-shadow(...)` and any
-          // CSS transitions still in flight. Strip both from the cloned
-          // DOM so the screenshot matches the post-animation final state.
-          doc.querySelectorAll<HTMLElement>('*').forEach(el => {
-            const s = el.style
-            if (s.filter && /drop-shadow/.test(s.filter)) s.filter = 'none'
-            s.transition = 'none'
-            s.animation = 'none'
-          })
-        },
       })
       const imgData = canvas.toDataURL('image/jpeg', 0.92)
 
