@@ -60,6 +60,10 @@ export async function fetchPlanningSchemes(
   const res = await fetchJson<XplanResponse>(url, { timeoutMs: 8000, retries: 2 })
   const feats = res?.features ?? []
 
+  // MAVAT viewer at the parcel coords — even when there's no plan, the user
+  // can verify directly on the official site that no plan covers the spot.
+  const mavatViewerUrl = `https://mavat.iplan.gov.il/?c=${itmX},${itmY}`
+
   if (feats.length === 0) {
     return {
       ok: true,
@@ -67,6 +71,7 @@ export async function fetchPlanningSchemes(
         kind: 'neutral', weight: 0, source: 'mavat', category: 'planning_schemes',
         title: 'אין תכנית בניין-עיר עדכנית באזור',
         description: 'לא נמצאה תב"ע פעילה החופפת לחלקה. ייתכן שתכנון יתחיל בעתיד.',
+        url: mavatViewerUrl,
       }],
     }
   }
@@ -82,6 +87,8 @@ export async function fetchPlanningSchemes(
   const a = strongest!.attributes
   const { weight, kind, label } = classifyStatus(a.station_desc)
 
+  // Prefer the plan's own MAVAT page when the API gave us one; otherwise
+  // fall back to the viewer at coords.
   const signal: Signal = {
     kind: kind === 'positive' ? 'positive' : 'neutral',
     weight,
@@ -91,6 +98,7 @@ export async function fetchPlanningSchemes(
     description:
       `תכנית ${a.pl_number ?? ''} "${a.pl_name ?? ''}" בסטטוס "${a.station_desc ?? '—'}" ` +
       `חופפת את החלקה (סה"כ ${feats.length} תכניות פעילות באזור).`.trim(),
+    url: a.pl_url ?? mavatViewerUrl,
   }
   return { ok: true, signals: [signal], raw: res }
 }

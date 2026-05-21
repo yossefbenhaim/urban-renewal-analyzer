@@ -24,6 +24,7 @@ export interface Signal {
   description: string
   source: SourceName
   category?: CategoryKey
+  url?: string
 }
 
 export interface Category {
@@ -37,6 +38,7 @@ export interface Category {
   weight_pct: number
   source: SourceName
   found: boolean
+  url?: string
 }
 
 export interface SourceContribution {

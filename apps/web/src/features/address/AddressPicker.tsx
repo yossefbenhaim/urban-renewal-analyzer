@@ -8,7 +8,7 @@
 // listener closes the dropdown when clicking outside.
 
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check, ChevronDown, AlertTriangle, X as XIcon, ExternalLink } from 'lucide-react'
 import { useDebouncedValue } from '@/lib/useDebouncedValue'
 
 export interface AddressValue {
@@ -129,6 +129,22 @@ function PickerField({
   )
 }
 
+// ─── Building-number validation ────────────────────────────────────
+// As the user types the number, we debounce and call /api/validate-address
+// (which hits GovMap's FreeSearch). Three possible outcomes drive the inline
+// feedback shown under the input:
+//   address  — ✓ ירוק, "מצפה 30, חיפה" + לינק לצפייה ב-GovMap
+//   street   — ⚠ אמבר, "רחוב קיים אבל המספר לא נמצא ב-GovMap"
+//   not_found — ✗ אדום, "כתובת לא נמצאה — בדוק שגיאות הקלדה"
+
+type ValidationStatus =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'address';  formatted: string; viewUrl: string }
+  | { kind: 'street';   formatted: string }
+  | { kind: 'not_found' }
+  | { kind: 'error' }
+
 // ─── Public component ────────────────────────────────────────────────
 
 export function AddressPicker({ value, onChange, disabled = false }: Props) {
@@ -137,6 +153,8 @@ export function AddressPicker({ value, onChange, disabled = false }: Props) {
 
   const debCity   = useDebouncedValue(cityQuery, 250)
   const debStreet = useDebouncedValue(streetQuery, 300)
+  const debNumber = useDebouncedValue(value.building_number, 450)
+  const [validation, setValidation] = useState<ValidationStatus>({ kind: 'idle' })
 
   // Keep local mirrors aligned when the parent resets the address.
   useEffect(() => { if (!value.city)   setCityQuery('')   }, [value.city])
@@ -162,6 +180,36 @@ export function AddressPicker({ value, onChange, disabled = false }: Props) {
       .finally(() => { if (!cancelled) setCitiesLoading(false) })
     return () => { cancelled = true }
   }, [debCity, value.city])
+
+  // Building-number validation — fires on debounced number change (and on
+  // city/street changes so changing the street re-validates). We cancel
+  // stale fetches via AbortController so the last-typed number wins.
+  useEffect(() => {
+    if (!value.city || !value.street || !debNumber) {
+      setValidation({ kind: 'idle' })
+      return
+    }
+    const ctrl = new AbortController()
+    setValidation({ kind: 'loading' })
+    const url =
+      `/api/validate-address?city=${encodeURIComponent(value.city)}` +
+      `&street=${encodeURIComponent(value.street)}` +
+      `&number=${encodeURIComponent(debNumber)}`
+    fetch(url, { signal: ctrl.signal })
+      .then(r => r.json())
+      .then(j => {
+        if (ctrl.signal.aborted) return
+        if (j.status === 'address')   setValidation({ kind: 'address', formatted: j.formatted, viewUrl: j.view_url })
+        else if (j.status === 'street')    setValidation({ kind: 'street', formatted: j.formatted })
+        else if (j.status === 'not_found') setValidation({ kind: 'not_found' })
+        else                               setValidation({ kind: 'error' })
+      })
+      .catch(err => {
+        if (err?.name === 'AbortError') return
+        setValidation({ kind: 'error' })
+      })
+    return () => ctrl.abort()
+  }, [value.city, value.street, debNumber])
 
   // Streets fetch — gated on city being set.
   useEffect(() => {
@@ -246,12 +294,76 @@ export function AddressPicker({ value, onChange, disabled = false }: Props) {
           }
         />
       </div>
-      {value.city && value.street && value.building_number && (
-        <div className="bg-sc-success-bg border border-sc-success/30 rounded-sc-input px-3 py-2 text-[12px] text-sc-success flex items-center gap-2">
+      <ValidationStrip status={validation} fallback={{ city: value.city, street: value.street, number: value.building_number }} />
+    </div>
+  )
+}
+
+// ─── Validation strip — inline ✓ / ⚠ / ✗ under the building-number ──
+
+function ValidationStrip({
+  status,
+  fallback,
+}: {
+  status: ValidationStatus
+  fallback: { city: string; street: string; number: string }
+}) {
+  if (status.kind === 'idle') return null
+  if (status.kind === 'loading') {
+    return (
+      <div className="bg-sc-bg border border-sc-border rounded-sc-input px-3 py-2 text-[12px] text-sc-text-muted flex items-center gap-2">
+        <Spinner />
+        <span>מאמת מול GovMap…</span>
+      </div>
+    )
+  }
+  if (status.kind === 'address') {
+    return (
+      <div className="bg-sc-success-bg border border-sc-success/30 rounded-sc-input px-3 py-2 text-[12px] text-sc-success flex items-center justify-between gap-2 flex-wrap">
+        <span className="inline-flex items-center gap-2">
           <Check size={14} strokeWidth={3} />
-          <span className="font-semibold">{value.street} {value.building_number}, {value.city}</span>
+          <span className="font-semibold">{status.formatted}</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider bg-sc-success/15 px-1.5 py-0.5 rounded-sc-pill">אומת ב-GovMap</span>
+        </span>
+        <a
+          href={status.viewUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-[11px] font-bold text-sc-success hover:underline"
+        >
+          <ExternalLink size={11} /> צפה במפה
+        </a>
+      </div>
+    )
+  }
+  if (status.kind === 'street') {
+    return (
+      <div className="bg-sc-warning-bg border border-sc-warning/30 rounded-sc-input px-3 py-2 text-[12px] text-sc-warning flex items-start gap-2">
+        <AlertTriangle size={14} strokeWidth={2.5} className="mt-0.5 flex-shrink-0" />
+        <div>
+          <span className="font-semibold">{status.formatted}</span>
+          <span className="mr-1">— הרחוב קיים, אבל מספר הבית {fallback.number} לא נמצא ב-GovMap.</span>
+          <span className="block mt-0.5 text-[11px] opacity-90">תוכל להמשיך — ההערכה תתבצע על מרכז הרחוב, ייתכן ועם פחות דיוק.</span>
         </div>
-      )}
+      </div>
+    )
+  }
+  if (status.kind === 'not_found') {
+    return (
+      <div className="bg-sc-danger/10 border border-sc-danger/30 rounded-sc-input px-3 py-2 text-[12px] text-sc-danger flex items-start gap-2">
+        <XIcon size={14} strokeWidth={2.5} className="mt-0.5 flex-shrink-0" />
+        <div>
+          <span className="font-semibold">הכתובת לא נמצאה ב-GovMap.</span>
+          <span className="block mt-0.5 text-[11px] opacity-90">בדוק שגיאות הקלדה במספר הבית.</span>
+        </div>
+      </div>
+    )
+  }
+  // error
+  return (
+    <div className="bg-sc-bg border border-sc-border-strong rounded-sc-input px-3 py-2 text-[12px] text-sc-text-muted flex items-center gap-2">
+      <AlertTriangle size={13} />
+      <span>תיקוף הכתובת לא זמין כרגע — תוכל להמשיך, נבדוק שוב בעת ההערכה.</span>
     </div>
   )
 }

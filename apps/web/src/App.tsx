@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import {
   Building2, Sparkles, ArrowLeft, Loader2, Check, AlertTriangle, X,
-  ShieldCheck, MapPin, Crown, Clock, Star, Wand2,
+  ShieldCheck, MapPin, Crown, Clock, Star, Wand2, ExternalLink,
 } from 'lucide-react'
 import { AddressPicker } from './features/address/AddressPicker'
 import { MaturityGauge } from './features/report/MaturityGauge'
@@ -142,12 +142,11 @@ function Footer() {
 
 function Marketing() {
   const cards = [
-    { icon: <ShieldCheck size={16} />,  title: 'מבוסס נתונים בלבד', body: 'אין ניחושים. כל איתות מקורו במקור ציבורי מאומת.' },
+    { icon: <ShieldCheck size={16} />,  title: 'מבוסס נתונים בלבד', body: 'אין ניחושים. כל איתות מקורו במקור ציבורי מאומת — עם קישור לראות את הנתון המקורי.' },
     { icon: <Building2 size={16} />,    title: '4 מקורות · 6 שכבות מידע', body: 'GovMap, מינהל התכנון, שימושי קרקע במבא"ת, ו-data.gov.il — מצליבים במקביל לתמונה אחת ברורה.' },
-    { icon: <Crown size={16} />,        title: 'תאמת מול אנשי מקצוע', body: 'Pre-Feasibility בלבד — אדריכל ושמאי יאמתו בשלב מאוחר יותר.' },
   ]
   return (
-    <section className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+    <section className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
       {cards.map(c => (
         <div key={c.title} className="bg-white border border-sc-border rounded-sc-card p-3">
           <div className="w-8 h-8 rounded-sc-input bg-sc-light-blue text-sc-primary grid place-items-center mb-1.5">
@@ -302,7 +301,19 @@ function CategoryRow({ c }: { c: Category }) {
             {c.detail}
           </div>
         )}
-        <div className="text-[10px] text-sc-text-muted mt-1">מקור: {sourceLabel(c.source)}</div>
+        <div className="text-[10px] text-sc-text-muted mt-1 inline-flex items-center gap-1.5 flex-wrap">
+          <span>מקור: {sourceLabel(c.source)}</span>
+          {c.url && (
+            <a
+              href={c.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-sc-primary font-semibold hover:underline"
+            >
+              <ExternalLink size={10} /> צפה במקור
+            </a>
+          )}
+        </div>
       </div>
     </li>
   )

@@ -42,6 +42,9 @@ export async function fetchLandUse(itmX: number, itmY: number): Promise<SourceFe
     '&geometryType=esriGeometryPoint&inSR=2039&outFields=mavat_name,legal_area&returnGeometry=false&f=json'
   const res = await fetchJson<XplanResponse>(url, { timeoutMs: 8000, retries: 2 })
   const feats = res?.features ?? []
+  // Public viewer URL at the parcel coords — lets the user open the MAVAT
+  // map and inspect the land-use polygon themselves.
+  const landUseUrl = `https://mavat.iplan.gov.il/?c=${itmX},${itmY}`
   if (feats.length === 0) {
     return {
       ok: true,
@@ -50,6 +53,7 @@ export async function fetchLandUse(itmX: number, itmY: number): Promise<SourceFe
         category: 'land_use',
         title: 'שימושי קרקע',
         description: 'לא נמצא יעוד קרקע רשום באזור הזה במערכת מבא"ת.',
+        url: landUseUrl,
       }],
     }
   }
@@ -69,6 +73,7 @@ export async function fetchLandUse(itmX: number, itmY: number): Promise<SourceFe
     category: 'land_use',
     title: 'שימושי קרקע',
     description: `יעוד הקרקע במקום: "${name.trim()}". ${cls.label}.`,
+    url: landUseUrl,
   }
   return { ok: true, signals: [signal], raw: feats.slice(0, 3) }
 }

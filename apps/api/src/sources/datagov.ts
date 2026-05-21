@@ -47,6 +47,12 @@ export async function fetchCityUrbanRenewal(city: string): Promise<SourceFetchRe
     // appears in a comment or area name only).
     .filter(r => clean(r.Yeshuv) === city.trim())
 
+  // Public data.gov.il URL for this specific CKAN resource — opens the
+  // browser preview where users can see all the rows and filter for their
+  // city. (We can't deep-link a row, but the dataset page is the right
+  // verifiable evidence.)
+  const datasetUrl = `https://data.gov.il/dataset/?res_id=${RESOURCE_ID}`
+
   if (records.length === 0) {
     return {
       ok: true,
@@ -55,11 +61,13 @@ export async function fetchCityUrbanRenewal(city: string): Promise<SourceFetchRe
           kind: 'neutral', weight: 0, source: 'data.gov.il', category: 'municipal_policy',
           title: `אין מתחמי התחדשות מוכרזים ב${city}`,
           description: 'העיר אינה ברשימת רשות ההתחדשות העירונית למתחמים מוכרזים.',
+          url: datasetUrl,
         },
         {
           kind: 'neutral', weight: 0, source: 'data.gov.il', category: 'projects_in_city',
           title: 'אין פרויקטי התחדשות פעילים באותה רשות',
           description: 'לא נמצאו פרויקטים בביצוע באותה עיר.',
+          url: datasetUrl,
         },
       ],
       raw: res,
@@ -76,6 +84,7 @@ export async function fetchCityUrbanRenewal(city: string): Promise<SourceFetchRe
     description:
       `נמצאו ${records.length} מתחמי התחדשות מוכרזים בעיר (מתוכם ${approved} בסטטוס מאושר).` +
       (inProgress > 0 ? ` ${inProgress} מתחמים בביצוע פעיל.` : ''),
+    url: datasetUrl,
   }]
 
   if (inProgress > 0) {
@@ -83,12 +92,14 @@ export async function fetchCityUrbanRenewal(city: string): Promise<SourceFetchRe
       kind: 'positive', weight: 5, source: 'data.gov.il', category: 'projects_in_city',
       title: 'מתחמי התחדשות בביצוע באותה רשות',
       description: `${inProgress} מתחמים בביצוע פעיל בעיר — סימן לפעילות יזמית רציפה.`,
+      url: datasetUrl,
     })
   } else {
     signals.push({
       kind: 'neutral', weight: 0, source: 'data.gov.il', category: 'projects_in_city',
       title: 'אין פרויקטי התחדשות בביצוע כעת',
       description: 'יש מתחמים מוכרזים אבל אף אחד מהם לא בשלב ביצוע פעיל.',
+      url: datasetUrl,
     })
   }
 

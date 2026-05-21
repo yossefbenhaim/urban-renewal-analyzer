@@ -9,6 +9,7 @@
 // Yossef-supplied reference address (מצפה 30, חיפה → גוש 11213 / חלקה 4 /
 // 897 m²).
 
+import { LRUCache } from 'lru-cache'
 import { fetchJson } from '../lib/http.js'
 import { itmToWgs84 } from '../lib/itm.js'
 import type { ResolvedAddress, Signal, SourceFetchResult } from '../types.js'
@@ -16,15 +17,48 @@ import type { ResolvedAddress, Signal, SourceFetchResult } from '../types.js'
 const FREE_SEARCH_URL  = 'https://ags.govmap.gov.il/Search/FreeSearch'
 const IDENTIFY_XY_URL  = 'https://ags.govmap.gov.il/Identify/IdentifyByXY'
 
+// FreeSearch returns a `DescLayerID` that distinguishes:
+//   ADDR_V1         — specific house number found ("address")
+//   STREET_MID_POINT — only street found, number missing/wrong ("street")
+//   else            — anything else (intersection, POI, etc.)
+// status:1 with errorCode 1306 == address not found at all.
 interface FreeSearchResponse {
   errorCode: number
+  status?: number
+  message?: string | null
   data?: {
     Result?: Array<{
       ResultLable?: string
       X?: number               // ITM easting
       Y?: number               // ITM northing
+      DescLayerID?: string
+      ObjectKey?: string
     }>
   }
+}
+
+export type GeocodeKind = 'address' | 'street' | 'other'
+export interface GeocodeHit {
+  itmX: number
+  itmY: number
+  label: string
+  kind: GeocodeKind
+  descLayerID: string
+}
+
+// 24 h LRU shared by /api/evaluate + /api/validate-address. Caches the
+// "miss" sentinel too, so a flurry of validation keystrokes against an
+// invalid number hits gov.il at most once per day.
+type CacheEntry = GeocodeHit | 'miss'
+const geocodeCache = new LRUCache<string, CacheEntry>({
+  max: 2000,
+  ttl: 24 * 60 * 60 * 1000,
+})
+
+function classifyDescLayer(id?: string): GeocodeKind {
+  if (id === 'ADDR_V1')          return 'address'
+  if (id === 'STREET_MID_POINT') return 'street'
+  return 'other'
 }
 
 interface IdentifyResponse {
@@ -61,21 +95,32 @@ function fieldValue(
 
 // ─── Public adapter entry points ────────────────────────────────────────
 
-export async function geocode(text: string): Promise<{
-  itmX: number; itmY: number; label: string
-} | null> {
+export async function geocode(text: string): Promise<GeocodeHit | null> {
+  const key = text.trim()
+  if (!key) return null
+  const cached = geocodeCache.get(key)
+  if (cached === 'miss') return null
+  if (cached) return cached
   const res = await fetchJson<FreeSearchResponse>(FREE_SEARCH_URL, {
     method: 'POST',
-    body: { keyword: text, LstResult: '' },
-    timeoutMs: 4000,
+    body: { keyword: key, LstResult: '' },
+    timeoutMs: 6000,
+    retries: 2,
   })
   const first = res?.data?.Result?.[0]
-  if (!first || first.X == null || first.Y == null) return null
-  return {
+  if (!first || first.X == null || first.Y == null) {
+    geocodeCache.set(key, 'miss')
+    return null
+  }
+  const hit: GeocodeHit = {
     itmX: first.X,
     itmY: first.Y,
-    label: first.ResultLable ?? text,
+    label: first.ResultLable ?? key,
+    kind: classifyDescLayer(first.DescLayerID),
+    descLayerID: first.DescLayerID ?? '',
   }
+  geocodeCache.set(key, hit)
+  return hit
 }
 
 async function identify(
@@ -125,6 +170,10 @@ export async function fetchAddress(addrText: string): Promise<SourceFetchResult>
     lot_sqm: lotRaw    ? Number(lotRaw)    : undefined,
   }
 
+  // GovMap viewer URL anchored to the resolved coords — clicking opens the
+  // public map at this exact parcel so the user can see the gush/chelka.
+  const govmapUrl = `https://www.govmap.gov.il/?c=${geo.itmX},${geo.itmY}&z=10`
+
   const signals: Signal[] = []
   // Lot-size penalties — only fire when we actually have a number.
   if (address.lot_sqm != null) {
@@ -133,24 +182,28 @@ export async function fetchAddress(addrText: string): Promise<SourceFetchResult>
         kind: 'negative', weight: -20, source: 'govmap', category: 'lot_size',
         title: 'מגרש קטן מאוד',
         description: `שטח המגרש הרשום הוא ${address.lot_sqm} מ"ר. פרויקט עצמאי כמעט בלתי אפשרי — נדרש חיבור למתחם רחב יותר.`,
+        url: govmapUrl,
       })
     } else if (address.lot_sqm < 600) {
       signals.push({
         kind: 'negative', weight: -10, source: 'govmap', category: 'lot_size',
         title: 'מגרש קטן יחסית',
         description: `שטח המגרש ${address.lot_sqm} מ"ר. פרויקט עצמאי פחות אטרקטיבי — שווה לבחון חיבור עם שכנים.`,
+        url: govmapUrl,
       })
     } else if (address.lot_sqm >= 1500) {
       signals.push({
         kind: 'positive', weight: 5, source: 'govmap', category: 'lot_size',
         title: 'מגרש גדול',
         description: `שטח המגרש ${address.lot_sqm} מ"ר — מספק מקום לבנייה עצמאית רחבה.`,
+        url: govmapUrl,
       })
     } else {
       signals.push({
         kind: 'neutral', weight: 0, source: 'govmap', category: 'lot_size',
         title: 'גודל מגרש סטנדרטי',
         description: `שטח המגרש ${address.lot_sqm} מ"ר — בטווח הרגיל לפרויקט.`,
+        url: govmapUrl,
       })
     }
   }
@@ -164,6 +217,11 @@ export async function fetchUrbanRenewalLayer(
   itmX: number,
   itmY: number,
 ): Promise<SourceFetchResult> {
+  // GovMap viewer URL with the urban-renewal layer parameter — opens the map
+  // at the address with declared compounds visible, so the user can see
+  // whether the address falls inside one.
+  const govmapUrl = `https://www.govmap.gov.il/?c=${itmX},${itmY}&z=10&layers=ADD_PROJECTS_UR_MUCHRAZ`
+
   const res = await identify(itmX, itmY, 'ADD_PROJECTS_UR_MUCHRAZ', 50)
   const hits = res?.data?.[0]?.Result ?? []
   if (hits.length === 0) {
@@ -175,6 +233,7 @@ export async function fetchUrbanRenewalLayer(
         kind: 'neutral', weight: 0, source: 'govmap', category: 'urban_renewal_area',
         title: 'אין מתחם התחדשות מוכרז כאן',
         description: 'בדקנו את שכבת מתחמי ההתחדשות המוכרזים של GovMap — הכתובת לא נמצאת בתוך מתחם שכבר הוכרז רשמית.',
+        url: govmapUrl,
       }],
       raw: res,
     }
@@ -187,6 +246,7 @@ export async function fetchUrbanRenewalLayer(
       kind: 'positive', weight: 20, source: 'govmap', category: 'urban_renewal_area',
       title: 'מתחם התחדשות עירונית מוכרז',
       description: `הכתובת נמצאת בתוך מתחם "${name}". זהו אינדיקטור חזק במיוחד להיתכנות.`,
+      url: govmapUrl,
     }],
     raw: res,
   }

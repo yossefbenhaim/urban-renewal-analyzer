@@ -102,6 +102,7 @@ export function categorize(signals: Signal[]): Category[] {
         weight_pct: Math.round((Math.abs(s.weight) / totalWeight) * 100),
         source: s.source,
         found: s.kind !== 'neutral' || s.weight !== 0,
+        url: s.url,
       })
     } else {
       out.push({

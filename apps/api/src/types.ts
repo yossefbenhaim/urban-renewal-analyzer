@@ -11,6 +11,7 @@ export interface Signal {
   description: string       // 1-2 sentences explaining the impact in Hebrew
   source: SourceName        // which adapter produced this signal
   category?: CategoryKey    // which UI category this rolls up into
+  url?: string              // public URL where the user can verify the underlying source data
 }
 
 export type SourceName =
@@ -78,6 +79,7 @@ export interface Category {
   weight_pct: number            // |weight| / sum(|weights|) — 0..100
   source: SourceName
   found: boolean
+  url?: string                  // verifiable source URL pulled from the underlying Signal
 }
 
 export interface SourceContribution {
