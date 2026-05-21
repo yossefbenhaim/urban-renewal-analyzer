@@ -16,14 +16,12 @@ import { fetchAddress, fetchUrbanRenewalLayer } from '../sources/govmap.js'
 import { fetchPlanningSchemes } from '../sources/mavat.js'
 import { fetchCityUrbanRenewal } from '../sources/datagov.js'
 import { fetchLandUse } from '../sources/landuse.js'
-import {
-  bucketize, computeScore, rankSignals,
-} from '../engine/score.js'
+import { bucketize, rankSignals } from '../engine/score.js'
 import {
   expectedTimeYears, recommendTrack, recommendations,
   singleBuildingFeasible, summaryHe,
 } from '../engine/recommend.js'
-import { categorize, sourceContributions } from '../engine/categorize.js'
+import { evaluateRubric } from '../engine/rubric.js'
 import { reportCache, cacheKey } from '../lib/cache.js'
 import type {
   EvaluateResponse, ResolvedAddress, Signal, SourceFetchResult,
@@ -118,8 +116,12 @@ export async function evaluateHandler(req: Request, res: Response) {
     itm_y:   foundationAddr.itm_y,
   }
 
-  const score  = computeScore(ranked)
-  const bucket = bucketize(score)
+  // Deterministic rubric — same inputs always produce the same numbers,
+  // and each source contributes a fixed share of the report regardless of
+  // which signals fired this run. Defined later inside `response` below.
+  const rubric  = evaluateRubric(ranked, { lot_sqm: address.lot_sqm }, [])
+  const score   = rubric.score
+  const bucket  = bucketize(score)
   const engineCtx = { address, signals: ranked, score, bucket }
   const track = recommendTrack(engineCtx)
 
@@ -153,13 +155,17 @@ export async function evaluateHandler(req: Request, res: Response) {
   }
 
   const sourcesUsed = Array.from(sourcesByName.values())
+  // Re-run the rubric with the now-known sourcesUsed so the notes on
+  // `source_contributions` can flag failed sources accurately.
+  const rubric2 = evaluateRubric(ranked, { lot_sqm: address.lot_sqm }, sourcesUsed)
+
   const response: EvaluateResponse = {
     address,
     score,
     bucket,
     signals: ranked,
-    categories: categorize(ranked),
-    source_contributions: sourceContributions(ranked, sourcesUsed),
+    categories: rubric2.categories,
+    source_contributions: rubric2.source_contributions,
     summary_he: summaryHe(engineCtx),
     recommended_track: track,
     single_building_feasible: singleBuildingFeasible(engineCtx),

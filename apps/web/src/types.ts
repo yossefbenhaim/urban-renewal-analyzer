@@ -34,6 +34,11 @@ export interface Category {
   summary: string
   impact: string
   detail?: string
+  // Deterministic rubric fields:
+  weight: number
+  subscore: number
+  contribution: number
+  // Legacy mirrors:
   weight_contribution: number
   weight_pct: number
   source: SourceName
@@ -43,6 +48,11 @@ export interface Category {
 
 export interface SourceContribution {
   name: SourceName
+  // Deterministic:
+  fixed_pct: number
+  contribution: number
+  categories: CategoryKey[]
+  // Legacy mirrors:
   positive_weight: number
   negative_weight: number
   total_weight: number

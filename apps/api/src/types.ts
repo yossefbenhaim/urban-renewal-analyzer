@@ -75,8 +75,17 @@ export interface Category {
   summary: string               // one-sentence finding
   impact: string                // one-sentence "what it means for the building"
   detail?: string               // specific data — plan IDs, m², counts. Rendered below impact.
-  weight_contribution: number   // signed weight added to the raw score
-  weight_pct: number            // |weight| / sum(|weights|) — 0..100
+
+  // Deterministic rubric fields — same input always produces the same numbers:
+  weight: number                // fixed % budget of this category in the report (sums to 100 across all categories)
+  subscore: number              // 0–100 — the rubric's evaluation of this category
+  contribution: number          // (subscore × weight) / 100 — points added to the final score
+
+  // Legacy mirrors kept while older clients catch up. Both equal the
+  // deterministic fields above.
+  weight_contribution: number
+  weight_pct: number
+
   source: SourceName
   found: boolean
   url?: string                  // verifiable source URL pulled from the underlying Signal
@@ -84,13 +93,21 @@ export interface Category {
 
 export interface SourceContribution {
   name: SourceName
+
+  // Deterministic fields — only depend on which categories the source owns,
+  // never on what fired this run.
+  fixed_pct: number             // sum of weights of the categories this source owns (always the same across runs)
+  contribution: number          // sum of points this source actually contributed to the score this run
+  categories: CategoryKey[]     // category keys this source owns
+
+  // Legacy mirrors (kept for older clients):
   positive_weight: number
   negative_weight: number
-  total_weight: number          // |+| + |−|
-  pct_of_total: number          // share of the report's total |weight|
-  signals_count: number         // total signals emitted (incl. neutrals)
-  failed: boolean               // true when the source timed out / 5xx'd — contributed nothing because it never responded
-  note?: string                 // user-facing explanation when failed or contributed 0
+  total_weight: number
+  pct_of_total: number          // alias of fixed_pct
+  signals_count: number
+  failed: boolean
+  note?: string
 }
 
 export interface EvaluateResponse {

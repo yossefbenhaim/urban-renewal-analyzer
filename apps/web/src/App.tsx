@@ -353,8 +353,7 @@ function buildEmailBody(data: EvaluateResponse): string {
   lines.push('')
   lines.push('— מה בדקנו —')
   for (const c of data.categories) {
-    const emoji = c.found ? (c.weight_contribution > 0 ? '✅' : c.weight_contribution < 0 ? '⚠️' : '·') : '·'
-    lines.push(`${emoji} ${c.title}: ${c.summary}${c.url ? `\n   ${c.url}` : ''}`)
+    lines.push(`${c.emoji} ${c.title}: ${c.summary} (${c.subscore}/100 · משקל ${c.weight}%)${c.url ? `\n   ${c.url}` : ''}`)
   }
   lines.push('')
   lines.push('— ההמלצה —')
@@ -403,26 +402,25 @@ function CategoriesList({ categories }: { categories: Category[] }) {
   )
 }
 function CategoryRow({ c }: { c: Category }) {
+  // Deterministic display:
+  //   "75/100 · משקל 25% · תורם 18.75 נק'"
+  // — the weight is a fixed budget that never changes between runs.
+  const subscoreCls =
+    c.subscore >= 65 ? 'bg-sc-success/15 text-sc-success' :
+    c.subscore <= 30 ? 'bg-sc-warning/15 text-sc-warning' :
+                       'bg-sc-text-muted/15 text-sc-text-muted'
   return (
     <li className="list-none flex items-start gap-2.5">
       <span className="mt-0.5 w-5 text-[18px] leading-none flex-shrink-0">{c.emoji}</span>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <div className="font-extrabold text-sc-text text-[15px]">{c.title}</div>
-          {c.found && c.weight_pct > 0 && (
-            <span
-              className={
-                'text-[12px] font-bold px-2 py-0.5 rounded-sc-pill ' +
-                (c.weight_contribution > 0
-                  ? 'bg-sc-success/15 text-sc-success'
-                  : c.weight_contribution < 0
-                    ? 'bg-sc-warning/15 text-sc-warning'
-                    : 'bg-sc-text-muted/15 text-sc-text-muted')
-              }
-            >
-              {c.weight_contribution > 0 ? '+' : ''}{c.weight_contribution} · {c.weight_pct}% מהציון
-            </span>
-          )}
+          <span className={`text-[12px] font-bold px-2 py-0.5 rounded-sc-pill ${subscoreCls}`}>
+            {c.subscore}/100
+          </span>
+          <span className="text-[11px] text-sc-text-muted">
+            משקל {c.weight}% · תורם {c.contribution.toFixed(1)} נק׳
+          </span>
         </div>
         <div className="text-[14px] font-semibold text-sc-text leading-relaxed mt-0.5">
           {c.summary}
@@ -458,55 +456,41 @@ function SourceBreakdown({ contributions }: { contributions: SourceContribution[
   return (
     <div className="bg-white rounded-sc-card border border-sc-border p-4">
       <div className="text-[13px] font-bold uppercase tracking-wider text-sc-text-muted mb-3">
-        🧮 משקל כל מקור בציון
+        🧮 משקל כל מקור בציון <span className="font-normal text-sc-text-muted normal-case">· אחוזים קבועים, אותם בכל הרצה</span>
       </div>
       <ul className="m-0 p-0 space-y-2.5">
         {contributions.map(s => {
-          const neutral = s.total_weight === 0
-          const badgeCls = s.failed
-            ? 'bg-sc-danger/15 text-sc-danger'
-            : 'bg-sc-text-muted/15 text-sc-text-muted'
-          const badgeText = s.failed ? 'לא הגיב' : 'ללא תרומה לציון'
+          const efficiency = s.fixed_pct > 0 ? Math.round((s.contribution / s.fixed_pct) * 100) : 0
           return (
             <li key={s.name} className="list-none">
               <div className="flex items-center justify-between text-[14px] mb-1 gap-2">
                 <span className="font-extrabold text-sc-text inline-flex items-center gap-1.5">
                   {sourceLabel(s.name)}
-                  {neutral && (
-                    <span className={`inline-flex items-center gap-1 text-[12px] font-bold px-2 py-0.5 rounded-sc-pill ${badgeCls}`}>
-                      {badgeText}
+                  {s.failed && (
+                    <span className="inline-flex items-center gap-1 text-[12px] font-bold px-2 py-0.5 rounded-sc-pill bg-sc-danger/15 text-sc-danger">
+                      לא הגיב
                     </span>
                   )}
                 </span>
                 <span className="text-sc-text-muted tabular-nums">
-                  {neutral
-                    ? (s.failed ? <>שגיאה / טיים-אאוט</> : <>נבדקו {s.signals_count} נקודות</>)
-                    : <>{s.pct_of_total}% · {s.positive_weight > 0 ? '+' : ''}{s.positive_weight}{s.negative_weight > 0 ? <> / −{s.negative_weight}</> : null}</>}
+                  משקל {s.fixed_pct}% · תרם {s.contribution.toFixed(1)} נק׳
                 </span>
               </div>
-              {neutral ? (
-                s.note && (
-                  <div className={
-                    'text-[13px] leading-relaxed rounded-sc-input px-2.5 py-1.5 border ' +
-                    (s.failed
-                      ? 'text-sc-danger bg-sc-danger/5 border-sc-danger/30'
-                      : 'text-sc-text-muted bg-sc-bg border-sc-border')
-                  }>
-                    {s.note}
-                  </div>
-                )
+              {s.failed && s.note ? (
+                <div className="text-[13px] leading-relaxed rounded-sc-input px-2.5 py-1.5 border text-sc-danger bg-sc-danger/5 border-sc-danger/30">
+                  {s.note}
+                </div>
               ) : (
-                <div className="h-1.5 rounded-sc-pill bg-sc-light-blue overflow-hidden flex">
+                <div className="h-2 rounded-sc-pill bg-sc-light-blue overflow-hidden">
                   <div
-                    className="h-full bg-sc-success"
-                    style={{ width: `${(s.positive_weight / Math.max(1, s.total_weight)) * s.pct_of_total}%` }}
-                  />
-                  <div
-                    className="h-full bg-sc-warning"
-                    style={{ width: `${(s.negative_weight / Math.max(1, s.total_weight)) * s.pct_of_total}%` }}
+                    className="h-full bg-sc-primary transition-all"
+                    style={{ width: `${efficiency}%` }}
                   />
                 </div>
               )}
+              <div className="text-[11px] text-sc-text-muted mt-0.5">
+                ניקוד מקסימלי אפשרי: {s.fixed_pct} נק׳ · ניצול: {efficiency}%
+              </div>
             </li>
           )
         })}
