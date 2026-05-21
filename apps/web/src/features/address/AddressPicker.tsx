@@ -61,8 +61,9 @@ function PickerField({
   }, [])
 
   const confirmed   = !!value && query === value
-  const showLoading = (loading || pending) && query.length >= 1 && !confirmed
-  const showEmpty   = !showLoading && open && query.length >= 1 && results.length === 0 && !disabled && !confirmed
+  // Loading shows only inside the dropdown options panel — never on the input.
+  const showLoading = (loading || pending) && query.length >= 1 && !confirmed && open
+  const showEmpty   = !showLoading && open && query.length >= 1 && results.length === 0 && !disabled && !confirmed && !(loading || pending)
   const showResults = !showLoading && open && results.length > 0 && !disabled && !confirmed
   const showHint    = !showLoading && open && query.length < 1 && !disabled
 
@@ -86,17 +87,17 @@ function PickerField({
           placeholder={disabled ? (disabledPlaceholder ?? placeholder) : placeholder}
           autoComplete="off"
           className={
-            `w-full bg-white border rounded-sc-input px-3 py-2.5 text-[14px] outline-none ` +
+            `w-full bg-white border rounded-sc-input ps-3 pe-9 py-2.5 text-[14px] outline-none ` +
             `focus:ring-2 focus:ring-sc-primary/10 transition-colors ${borderCls} ` +
             (disabled ? 'bg-sc-bg text-sc-text-muted' : '')
           }
         />
-        <span className="absolute start-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center text-sc-text-muted">
-          {showLoading
-            ? <Spinner />
-            : confirmed
-              ? <Check size={16} strokeWidth={3} className="text-sc-success" />
-              : <ChevronDown size={16} />}
+        {/* Icon sits on the trailing edge (left in RTL) so it never overlaps
+            the typed text. No spinner here — loading shows inside the panel. */}
+        <span className="absolute end-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center text-sc-text-muted">
+          {confirmed
+            ? <Check size={16} strokeWidth={3} className="text-sc-success" />
+            : <ChevronDown size={16} />}
         </span>
 
         {(showHint || showLoading || showEmpty || showResults) && (

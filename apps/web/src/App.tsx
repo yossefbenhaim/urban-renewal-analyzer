@@ -45,7 +45,7 @@ export function App() {
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
-      <main className="flex-1 px-4 sm:px-6 py-6 sm:py-10 max-w-[1100px] w-full mx-auto">
+      <main className="flex-1 px-4 sm:px-6 py-6 sm:py-10 max-w-[1100px] w-full me-auto">
         <Hero />
         <form onSubmit={onEvaluate} className="mt-6 bg-white rounded-sc-card border border-sc-border shadow-sm p-4 sm:p-5">
           <AddressPicker value={addr} onChange={setAddr} disabled={busy} />
@@ -84,7 +84,7 @@ export function App() {
 function Header() {
   return (
     <header className="bg-gradient-to-l from-sc-navy to-sc-primary text-white shadow-sm">
-      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-4 flex items-center gap-3">
+      <div className="max-w-[1100px] me-auto px-4 sm:px-6 py-4 flex items-center gap-3">
         <div className="w-9 h-9 rounded-sc-input bg-white/20 grid place-items-center">
           <Building2 size={20} />
         </div>
@@ -118,7 +118,7 @@ function Hero() {
 function Footer() {
   return (
     <footer className="mt-12 border-t border-sc-border bg-white">
-      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-6 text-[11px] text-sc-text-muted">
+      <div className="max-w-[1100px] me-auto px-4 sm:px-6 py-6 text-[11px] text-sc-text-muted">
         מבוסס על נתוני GovMap, מינהל התכנון (MAVAT), ו-data.gov.il.
         אינו מהווה חוות דעת אדריכלית, משפטית או שמאית רשמית.
       </div>
@@ -267,28 +267,47 @@ function SourceBreakdown({ contributions }: { contributions: SourceContribution[
       <div className="text-[11px] font-bold uppercase tracking-wider text-sc-text-muted mb-3">
         🧮 משקל כל מקור בציון
       </div>
-      <ul className="m-0 p-0 space-y-2">
-        {contributions.map(s => (
-          <li key={s.name} className="list-none">
-            <div className="flex items-center justify-between text-[12px] mb-1">
-              <span className="font-extrabold text-sc-text">{sourceLabel(s.name)}</span>
-              <span className="text-sc-text-muted tabular-nums">
-                {s.pct_of_total}% · {s.positive_weight > 0 ? '+' : ''}{s.positive_weight}
-                {s.negative_weight > 0 ? <> / −{s.negative_weight}</> : null}
-              </span>
-            </div>
-            <div className="h-1.5 rounded-sc-pill bg-sc-light-blue overflow-hidden flex">
-              <div
-                className="h-full bg-sc-success"
-                style={{ width: `${(s.positive_weight / Math.max(1, s.total_weight)) * s.pct_of_total}%` }}
-              />
-              <div
-                className="h-full bg-sc-warning"
-                style={{ width: `${(s.negative_weight / Math.max(1, s.total_weight)) * s.pct_of_total}%` }}
-              />
-            </div>
-          </li>
-        ))}
+      <ul className="m-0 p-0 space-y-2.5">
+        {contributions.map(s => {
+          const neutral = s.total_weight === 0
+          return (
+            <li key={s.name} className="list-none">
+              <div className="flex items-center justify-between text-[12px] mb-1 gap-2">
+                <span className="font-extrabold text-sc-text inline-flex items-center gap-1.5">
+                  {sourceLabel(s.name)}
+                  {neutral && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-sc-pill bg-sc-text-muted/15 text-sc-text-muted">
+                      ללא תרומה לציון
+                    </span>
+                  )}
+                </span>
+                <span className="text-sc-text-muted tabular-nums">
+                  {neutral
+                    ? <>נבדקו {s.signals_count} נקודות</>
+                    : <>{s.pct_of_total}% · {s.positive_weight > 0 ? '+' : ''}{s.positive_weight}{s.negative_weight > 0 ? <> / −{s.negative_weight}</> : null}</>}
+                </span>
+              </div>
+              {neutral ? (
+                s.note && (
+                  <div className="text-[11px] text-sc-text-muted leading-relaxed bg-sc-bg rounded-sc-input px-2.5 py-1.5 border border-sc-border">
+                    {s.note}
+                  </div>
+                )
+              ) : (
+                <div className="h-1.5 rounded-sc-pill bg-sc-light-blue overflow-hidden flex">
+                  <div
+                    className="h-full bg-sc-success"
+                    style={{ width: `${(s.positive_weight / Math.max(1, s.total_weight)) * s.pct_of_total}%` }}
+                  />
+                  <div
+                    className="h-full bg-sc-warning"
+                    style={{ width: `${(s.negative_weight / Math.max(1, s.total_weight)) * s.pct_of_total}%` }}
+                  />
+                </div>
+              )}
+            </li>
+          )
+        })}
       </ul>
     </div>
   )
@@ -376,10 +395,11 @@ function trackHeadline(t: Track): string {
 }
 function sourceLabel(s: string): string {
   switch (s) {
-    case 'govmap':       return 'GovMap'
-    case 'mavat':        return 'מינהל התכנון (MAVAT)'
-    case 'data.gov.il':  return 'data.gov.il'
-    default:             return s
+    case 'govmap':         return 'GovMap'
+    case 'mavat':          return 'מינהל התכנון (MAVAT)'
+    case 'mavat.landuse':  return 'מבא"ת — שימושי קרקע'
+    case 'data.gov.il':    return 'data.gov.il'
+    default:               return s
   }
 }
 function bucketStyles(b: Bucket): { bg: string; border: string } {

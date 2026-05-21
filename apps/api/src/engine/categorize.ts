@@ -112,20 +112,33 @@ export function categorize(signals: Signal[]): Category[] {
   return out
 }
 
+const SOURCE_NEUTRAL_NOTE: Record<SourceName, string> = {
+  'govmap':       'בדקנו את שכבות GovMap (מתחם התחדשות מוכרז, גוש/חלקה, גודל מגרש). הנתונים נטענו בהצלחה אך לא נמצאה אינדיקציה שמטיבה או מרעה את הציון.',
+  'mavat.landuse':'בדקנו את שכבת שימושי הקרקע של מבא"ת. יעוד הקרקע שאותר אינו מטיב ואינו מרעה את ההיתכנות.',
+  'mavat':        'בדקנו את מאגר התכניות של מינהל התכנון — אף תכנית פעילה לא הוסיפה משקל לציון.',
+  'data.gov.il':  'בדקנו את ערכות הנתונים של data.gov.il — אף ערכת מידע לא הוסיפה משקל לציון.',
+}
+
 export function sourceContributions(signals: Signal[]): SourceContribution[] {
-  const totals: Record<string, { pos: number; neg: number }> = {}
+  const totals: Record<string, { pos: number; neg: number; count: number }> = {}
   for (const s of signals) {
     const k = s.source
-    if (!totals[k]) totals[k] = { pos: 0, neg: 0 }
+    if (!totals[k]) totals[k] = { pos: 0, neg: 0, count: 0 }
+    totals[k].count += 1
     if (s.weight > 0) totals[k].pos += s.weight
     if (s.weight < 0) totals[k].neg += Math.abs(s.weight)
   }
   const grandTotal = Object.values(totals).reduce((a, b) => a + b.pos + b.neg, 0) || 1
-  return Object.entries(totals).map(([name, v]) => ({
-    name: name as SourceName,
-    positive_weight: v.pos,
-    negative_weight: v.neg,
-    total_weight: v.pos + v.neg,
-    pct_of_total: Math.round(((v.pos + v.neg) / grandTotal) * 100),
-  })).sort((a, b) => b.total_weight - a.total_weight)
+  return Object.entries(totals).map(([name, v]) => {
+    const total = v.pos + v.neg
+    return {
+      name: name as SourceName,
+      positive_weight: v.pos,
+      negative_weight: v.neg,
+      total_weight: total,
+      pct_of_total: Math.round((total / grandTotal) * 100),
+      signals_count: v.count,
+      note: total === 0 ? SOURCE_NEUTRAL_NOTE[name as SourceName] : undefined,
+    }
+  }).sort((a, b) => b.total_weight - a.total_weight)
 }

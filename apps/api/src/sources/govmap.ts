@@ -167,7 +167,17 @@ export async function fetchUrbanRenewalLayer(
   const res = await identify(itmX, itmY, 'ADD_PROJECTS_UR_MUCHRAZ', 50)
   const hits = res?.data?.[0]?.Result ?? []
   if (hits.length === 0) {
-    return { ok: true, signals: [] }
+    // Emit a neutral signal so the source's "checked, no match" state is
+    // visible in the report — instead of looking like the source failed.
+    return {
+      ok: true,
+      signals: [{
+        kind: 'neutral', weight: 0, source: 'govmap', category: 'urban_renewal_area',
+        title: 'אין מתחם התחדשות מוכרז כאן',
+        description: 'בדקנו את שכבת מתחמי ההתחדשות המוכרזים של GovMap — הכתובת לא נמצאת בתוך מתחם שכבר הוכרז רשמית.',
+      }],
+      raw: res,
+    }
   }
   const project = hits[0]
   const name = fieldValue([project], 'שם המתחם') ?? 'מתחם התחדשות'

@@ -44,6 +44,8 @@ export interface SourceContribution {
   negative_weight: number
   total_weight: number
   pct_of_total: number
+  signals_count: number
+  note?: string
 }
 
 export type Bucket = 'very_high' | 'high' | 'moderate' | 'low' | 'very_low'

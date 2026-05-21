@@ -85,6 +85,8 @@ export interface SourceContribution {
   negative_weight: number
   total_weight: number          // |+| + |−|
   pct_of_total: number          // share of the report's total |weight|
+  signals_count: number         // total signals emitted (incl. neutrals)
+  note?: string                 // shown when total_weight === 0 — explains why the source contributed nothing to the score
 }
 
 export interface EvaluateResponse {
