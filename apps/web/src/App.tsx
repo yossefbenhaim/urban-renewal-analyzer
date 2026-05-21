@@ -48,7 +48,7 @@ export function App() {
       <main className="flex-1 px-4 sm:px-6 py-6 sm:py-10 max-w-[1100px] w-full mx-auto">
         <Hero />
         <form onSubmit={onEvaluate} className="mt-6 bg-white rounded-sc-card border border-sc-border shadow-sm p-4 sm:p-5">
-          <AddressPicker value={addr} onChange={setAddr} busy={busy} />
+          <AddressPicker value={addr} onChange={setAddr} disabled={busy} />
           <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             <button
               type="submit"
