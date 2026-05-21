@@ -310,29 +310,91 @@ function ExportBar({ data }: { data: EvaluateResponse }) {
       // jsPDF ships both a default export and a named one; favour the named.
       const JsPDF = (jsPdfMod as any).jsPDF ?? (jsPdfMod as any).default
 
-      const canvas = await domToCanvas(node, {
-        scale: 2,
-        backgroundColor: '#ffffff',
-      })
-      const imgData = canvas.toDataURL('image/jpeg', 0.92)
-
       const pdf = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
       const pageW = pdf.internal.pageSize.getWidth()
       const pageH = pdf.internal.pageSize.getHeight()
-      const margin = 6
-      const imgW = pageW - margin * 2
-      const imgH = (canvas.height * imgW) / canvas.width
+      const margin = 8
+      const usableW = pageW - margin * 2
+      const usableH = pageH - margin * 2
 
-      let yOffset = 0
-      let pageIdx = 0
-      while (yOffset < imgH) {
-        if (pageIdx > 0) pdf.addPage()
-        // addImage places the whole image but only the slice inside the page
-        // viewport prints. Negative Y shifts the unseen part above the page.
-        pdf.addImage(imgData, 'JPEG', margin, margin - yOffset, imgW, imgH, undefined, 'FAST')
-        yOffset += pageH - margin * 2
-        pageIdx += 1
+      // Each top-level child of #report-root that's NOT the no-print toolbar
+      // is rendered on its own dedicated page. Within a single section we
+      // paginate at row boundaries (the `data-pdf-block` elements that each
+      // <CategoryRow> / <SourceRow> already declares) so a category bullet
+      // never gets cut in half across two pages.
+      const sections = Array.from(node.children)
+        .filter((c): c is HTMLElement =>
+          c instanceof HTMLElement && !c.classList.contains('no-print'),
+        )
+
+      let pageStarted = false
+      for (const section of sections) {
+        // Try to split this section into row-level blocks. If none are
+        // declared, the whole section is one block.
+        const declared = section.querySelectorAll<HTMLElement>('[data-pdf-block]')
+        const blocks: HTMLElement[] = declared.length > 0
+          ? [section, ...Array.from(declared)]
+          : [section]
+
+        // We use the section snapshot as the "primary" block — if it fits on
+        // one page we render just that. Otherwise render the row blocks
+        // sequentially after first emitting the section header.
+        const primary = await domToCanvas(section, { scale: 2, backgroundColor: '#ffffff' })
+        const primaryH = (primary.height * usableW) / primary.width
+
+        if (pageStarted) pdf.addPage()
+        pageStarted = true
+
+        if (primaryH <= usableH) {
+          const yOff = margin + Math.max(0, (usableH - primaryH) / 4)
+          pdf.addImage(
+            primary.toDataURL('image/jpeg', 0.92), 'JPEG',
+            margin, yOff, usableW, primaryH, undefined, 'FAST',
+          )
+          continue
+        }
+
+        // Section is taller than one page. If we have row-level blocks,
+        // pack them; otherwise paginate the screenshot itself.
+        if (declared.length === 0) {
+          let yConsumed = 0
+          let pageIdx = 0
+          while (yConsumed < primaryH) {
+            if (pageIdx > 0) pdf.addPage()
+            pdf.addImage(
+              primary.toDataURL('image/jpeg', 0.92), 'JPEG',
+              margin, margin - yConsumed, usableW, primaryH, undefined, 'FAST',
+            )
+            yConsumed += usableH
+            pageIdx += 1
+          }
+          continue
+        }
+
+        // Row-aware pagination: render each block, pack onto pages.
+        let cursorY = margin
+        let onPage = true
+        for (const blk of blocks.slice(1)) {     // skip the section wrapper itself
+          const blockCanvas = await domToCanvas(blk, { scale: 2, backgroundColor: '#ffffff' })
+          const blockH = (blockCanvas.height * usableW) / blockCanvas.width
+          if (cursorY + blockH > usableH + margin) {
+            pdf.addPage()
+            cursorY = margin
+            onPage = true
+          }
+          if (!onPage) {
+            pdf.addPage()
+            cursorY = margin
+            onPage = true
+          }
+          pdf.addImage(
+            blockCanvas.toDataURL('image/jpeg', 0.92), 'JPEG',
+            margin, cursorY, usableW, blockH, undefined, 'FAST',
+          )
+          cursorY += blockH + 4
+        }
       }
+
       pdf.save(`feasibility-${slugifyAddress(data.address.formatted)}.pdf`)
     } catch (err) {
       console.error('PDF export failed', err)
@@ -406,7 +468,7 @@ function CategoryRow({ c }: { c: Category }) {
     c.subscore <= 30 ? 'bg-sc-warning/15 text-sc-warning' :
                        'bg-sc-text-muted/15 text-sc-text-muted'
   return (
-    <li className="list-none flex items-start gap-2.5">
+    <li data-pdf-block className="list-none flex items-start gap-2.5 break-inside-avoid">
       <span className="mt-0.5 w-5 text-[18px] leading-none flex-shrink-0">{c.emoji}</span>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
@@ -458,7 +520,7 @@ function SourceBreakdown({ contributions }: { contributions: SourceContribution[
         {contributions.map(s => {
           const efficiency = s.fixed_pct > 0 ? Math.round((s.contribution / s.fixed_pct) * 100) : 0
           return (
-            <li key={s.name} className="list-none">
+            <li key={s.name} data-pdf-block className="list-none break-inside-avoid">
               <div className="flex items-center justify-between text-[14px] mb-1 gap-2">
                 <span className="font-extrabold text-sc-text inline-flex items-center gap-1.5">
                   {sourceLabel(s.name)}
