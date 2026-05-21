@@ -2,6 +2,7 @@ import express from 'express'
 import { evaluateHandler } from './routes/evaluate.js'
 import { citiesHandler, streetsHandler } from './routes/address.js'
 import { validateAddressHandler } from './routes/validate.js'
+import { leadHandler } from './routes/lead.js'
 
 const app = express()
 app.use(express.json({ limit: '64kb' }))
@@ -28,6 +29,7 @@ app.get('/api/cities', citiesHandler)
 app.get('/api/streets', streetsHandler)
 app.get('/api/validate-address', validateAddressHandler)
 app.post('/api/evaluate', evaluateHandler)
+app.post('/api/lead', leadHandler)
 
 const port = Number(process.env.PORT ?? 3001)
 app.listen(port, () => {

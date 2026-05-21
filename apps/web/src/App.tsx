@@ -1,7 +1,7 @@
 // Public landing page for feasibility.byclick.co.il.
 // One screen, one job: enter address → get the Hebrew report.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Building2, Sparkles, ArrowLeft, Loader2, Check, AlertTriangle, X,
   ShieldCheck, MapPin, Crown, Clock, Star, Wand2, ExternalLink,
@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { AddressPicker } from './features/address/AddressPicker'
 import { MaturityGauge } from './features/report/MaturityGauge'
+import { LeadGate, readStoredLead, type LeadInfo } from './features/lead/LeadGate'
 import type {
   Bucket, Category, CommercialLevel, EvaluateResponse, SourceContribution, SourceResult, Track,
 } from './types'
@@ -25,6 +26,16 @@ export function App() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [report, setReport] = useState<EvaluateResponse | null>(null)
+  // Lead-gate state — `null` until we've checked localStorage on mount.
+  // After that: a LeadInfo means the user has accepted; `null` still means
+  // they haven't (in which case LeadGate is rendered as a blocker).
+  const [lead, setLead] = useState<LeadInfo | null>(null)
+  const [leadChecked, setLeadChecked] = useState(false)
+
+  useEffect(() => {
+    setLead(readStoredLead())
+    setLeadChecked(true)
+  }, [])
 
   const isResultMode = busy || report !== null
 
@@ -74,6 +85,27 @@ export function App() {
     setError(null)
     setReport(null)
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // Until localStorage has been read we render nothing to avoid a flash of
+  // either the gate or the form — there's no SSR here so this only delays
+  // the first paint by a single tick.
+  if (!leadChecked) {
+    return <div className="min-h-screen" />
+  }
+
+  // No accepted lead yet → render the gate as a blocker. The address form
+  // and the rest of the app are hidden until the user submits.
+  if (!lead) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header onReset={undefined} />
+        <main className="flex-1 px-4 sm:px-6 py-6 sm:py-10 max-w-[1100px] w-full mx-auto">
+          <LeadGate onAccepted={info => setLead(info)} />
+        </main>
+        <Footer />
+      </div>
+    )
   }
 
   return (
@@ -181,8 +213,10 @@ function Header({ onReset }: { onReset?: () => void }) {
           <Building2 size={20} />
         </div>
         <div className="min-w-0">
-          <div className="text-[16px] font-extrabold leading-tight">Pre-Feasibility AI</div>
-          <div className="text-[12px] opacity-85">הערכת היתכנות פינוי-בינוי לפי כתובת</div>
+          <div className="text-[16px] font-extrabold leading-tight">בודק היתכנות פינוי-בינוי</div>
+          <div className="text-[12px] opacity-85 inline-flex items-center gap-1">
+            <Crown size={11} /> כלי חינמי מאת <span className="font-bold">Silver Castle</span>
+          </div>
         </div>
         <div className="ms-auto flex items-center gap-2">
           {onReset && (
@@ -231,12 +265,58 @@ function Hero() {
 function Footer() {
   return (
     <footer className="mt-6 border-t border-sc-border bg-white no-print">
-      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-3 text-[12px] text-sc-text-muted leading-snug">
-        מבוסס על 4 מקורות ציבוריים — GovMap (גוש/חלקה + מתחמי התחדשות מוכרזים),
-        מינהל התכנון (MAVAT), שכבת שימושי קרקע במבא"ת, ו-data.gov.il.
-        אינו מהווה חוות דעת אדריכלית, משפטית או שמאית רשמית.
+      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-3 text-[12px] text-sc-text-muted leading-snug flex flex-wrap items-center justify-between gap-2">
+        <span>
+          מבוסס על 4 מקורות ציבוריים — GovMap, מינהל התכנון (MAVAT), שימושי קרקע, ו-data.gov.il.
+          אינו מהווה חוות דעת אדריכלית, משפטית או שמאית רשמית.
+        </span>
+        <span className="inline-flex items-center gap-1 font-semibold text-sc-text-secondary">
+          <Crown size={11} className="text-sc-gold" /> Powered by{' '}
+          <a href="https://silver-castle.byclick.co.il/" target="_blank" rel="noopener noreferrer" className="text-sc-primary hover:underline">
+            Silver Castle
+          </a>
+        </span>
       </div>
     </footer>
+  )
+}
+
+// ─── End-of-report CTA — invites the resident to sign up at Silver Castle
+// for the actual project journey (the analyzer is just the appetiser). ──
+
+function SilverCastleCTA() {
+  return (
+    <div
+      data-pdf-block
+      className="rounded-sc-card overflow-hidden border border-sc-gold/40 bg-gradient-to-l from-sc-navy to-sc-primary text-white shadow-md"
+    >
+      <div className="p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div className="w-12 h-12 rounded-sc-input bg-white/15 grid place-items-center flex-shrink-0">
+          <Crown size={24} className="text-sc-gold" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[12px] font-bold uppercase tracking-wider opacity-85 mb-1 inline-flex items-center gap-1.5">
+            <Sparkles size={12} /> השלב הבא
+          </div>
+          <div className="text-[18px] sm:text-[20px] font-extrabold leading-tight mb-1.5">
+            ההערכה היא רק ההתחלה. <span className="text-sc-gold">Silver Castle</span> מלווה אותך לאורך כל הפרויקט.
+          </div>
+          <div className="text-[13px] opacity-95 leading-snug">
+            מערכת ניהול דיירים מלאה: ועד, הצבעות, חתימות, יזמים, עו״ד, ארכיון מסמכים והתקדמות שלב-שלב.
+            הצטרף בחינם ובוא נראה אם הבניין שלך מתאים — בלי התחייבות.
+          </div>
+        </div>
+        <a
+          href="https://silver-castle.byclick.co.il/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 bg-white text-sc-navy text-[14px] font-extrabold leading-none px-5 py-3 rounded-sc-pill shadow-md hover:bg-white/95 transition-colors whitespace-nowrap"
+        >
+          הירשם ב-Silver Castle
+          <ExternalLink size={13} />
+        </a>
+      </div>
+    </div>
   )
 }
 
@@ -301,6 +381,7 @@ function ResultSection({
       <SourceBreakdown contributions={report.source_contributions} />
       <RecommendationCard data={report} />
       <SourcesFooter sources={report.sources_used} disclaimer={report.disclaimer} />
+      <SilverCastleCTA />
     </div>
   )
 }

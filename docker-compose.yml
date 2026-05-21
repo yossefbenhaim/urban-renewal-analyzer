@@ -8,6 +8,12 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3001
+      - LEADS_FILE=/data/leads.jsonl
+    volumes:
+      # Append-only lead log — survives container restarts so the Silver
+      # Castle CRM can ingest it later. Host path lives in the Coolify
+      # working dir alongside the repo.
+      - ura-data:/data
     networks:
       - ura
       - coolify
@@ -31,6 +37,9 @@ services:
     networks:
       - ura
       - coolify
+
+volumes:
+  ura-data:
 
 networks:
   ura:
