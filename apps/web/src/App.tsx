@@ -5,7 +5,7 @@ import { useState } from 'react'
 import {
   Building2, Sparkles, ArrowLeft, Loader2, Check, AlertTriangle, X,
   ShieldCheck, MapPin, Crown, Clock, Star, Wand2, ExternalLink,
-  Download, Mail, FileArchive, Plus,
+  Download, Plus,
 } from 'lucide-react'
 import { AddressPicker } from './features/address/AddressPicker'
 import { MaturityGauge } from './features/report/MaturityGauge'
@@ -265,105 +265,79 @@ function ScoreHero({ data }: { data: EvaluateResponse }) {
   )
 }
 
-// ─── ExportBar: PDF / Email / ZIP ────────────────────────────────────
+// ─── ExportBar: single "Download PDF" action ─────────────────────────
+// Direct client-side PDF generation via html2canvas → jsPDF. We screenshot
+// #report-root, paginate the resulting image across A4 portrait pages, and
+// save the file with a slugified address as the filename. No browser print
+// dialog, no extra clicks.
 
 function ExportBar({ data }: { data: EvaluateResponse }) {
-  const [zipping, setZipping] = useState(false)
+  const [busy, setBusy] = useState(false)
 
-  const summaryText = buildEmailBody(data)
-
-  function downloadPdf() {
-    // Browser print dialog: user picks "Save as PDF". Print CSS hides the
-    // header/exports and styles the report for paper.
-    window.print()
-  }
-
-  function emailReport() {
-    const subject = `הערכת היתכנות פינוי-בינוי — ${data.address.formatted}`
-    const body = summaryText
-    window.location.href =
-      `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-  }
-
-  async function downloadZip() {
-    setZipping(true)
+  async function downloadPdf() {
+    const node = document.getElementById('report-root')
+    if (!node) return
+    setBusy(true)
     try {
-      const [{ default: JSZip }] = await Promise.all([import('jszip')])
-      const zip = new JSZip()
-      zip.file('report.json', JSON.stringify(data, null, 2))
-      zip.file('report.txt', summaryText)
-      zip.file('README.txt',
-`Pre-Feasibility AI — דוח היתכנות פינוי-בינוי
+      const [{ default: html2canvas }, jsPdfMod] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ])
+      // jsPDF ships both a default export and a named one; favour the named.
+      const JsPDF = (jsPdfMod as any).jsPDF ?? (jsPdfMod as any).default
 
-הקובץ report.json מכיל את הדוח המלא במבנה מובנה (כל האיתותים, המקורות, הציון).
-הקובץ report.txt מכיל גרסת טקסט קריאה.
+      const canvas = await html2canvas(node, {
+        scale: window.devicePixelRatio >= 2 ? 2 : 1.5,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        logging: false,
+      })
+      const imgData = canvas.toDataURL('image/jpeg', 0.92)
 
-הדוח מבוסס על נתונים ציבוריים מ-GovMap, מינהל התכנון (MAVAT), שכבת שימושי
-קרקע במבא"ת, ו-data.gov.il. אינו מהווה חוות דעת אדריכלית, משפטית או שמאית.
-`,
-      )
-      const blob = await zip.generateAsync({ type: 'blob' })
-      triggerDownload(blob, `feasibility-${slugifyAddress(data.address.formatted)}.zip`)
+      const pdf = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const pageW = pdf.internal.pageSize.getWidth()
+      const pageH = pdf.internal.pageSize.getHeight()
+      const margin = 6
+      const imgW = pageW - margin * 2
+      const imgH = (canvas.height * imgW) / canvas.width
+
+      let yOffset = 0
+      let pageIdx = 0
+      while (yOffset < imgH) {
+        if (pageIdx > 0) pdf.addPage()
+        // addImage places the whole image but only the slice inside the page
+        // viewport prints. Negative Y shifts the unseen part above the page.
+        pdf.addImage(imgData, 'JPEG', margin, margin - yOffset, imgW, imgH, undefined, 'FAST')
+        yOffset += pageH - margin * 2
+        pageIdx += 1
+      }
+      pdf.save(`feasibility-${slugifyAddress(data.address.formatted)}.pdf`)
+    } catch (err) {
+      console.error('PDF export failed', err)
+      // Fallback: trigger browser print dialog so the user can still save as PDF.
+      window.print()
     } finally {
-      setZipping(false)
+      setBusy(false)
     }
   }
 
   return (
-    <div className="no-print bg-white rounded-sc-card border border-sc-border p-3 flex items-center gap-2 flex-wrap">
-      <div className="text-[13px] font-bold text-sc-text-secondary me-1">שתף את הדוח:</div>
-      <button onClick={downloadPdf}    className={exportBtnCls()}><Download size={14} /> הורד PDF</button>
-      <button onClick={emailReport}    className={exportBtnCls()}><Mail size={14} /> שלח במייל</button>
-      <button onClick={downloadZip} disabled={zipping} className={exportBtnCls()}>
-        {zipping ? <Loader2 size={14} className="animate-spin" /> : <FileArchive size={14} />}
-        הורד ZIP
+    <div className="no-print flex justify-end">
+      <button
+        type="button"
+        onClick={downloadPdf}
+        disabled={busy}
+        className="inline-flex items-center gap-1.5 bg-sc-primary text-white text-[14px] font-bold px-4 py-2.5 rounded-sc-btn shadow-[0_2px_8px_rgba(59,107,156,0.2)] hover:opacity-90 disabled:opacity-50 transition-opacity"
+      >
+        {busy ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+        {busy ? 'מכין PDF…' : 'הורד כ-PDF'}
       </button>
     </div>
   )
 }
 
-function exportBtnCls() {
-  return 'inline-flex items-center gap-1.5 bg-sc-light-blue text-sc-primary text-[13px] font-bold px-3 py-2 rounded-sc-btn hover:bg-sc-primary hover:text-white transition-colors disabled:opacity-50'
-}
-
-function triggerDownload(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 1500)
-}
-
 function slugifyAddress(s: string): string {
   return s.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'report'
-}
-
-function buildEmailBody(data: EvaluateResponse): string {
-  const lines: string[] = []
-  lines.push(`הערכת היתכנות פינוי-בינוי — ${data.address.formatted}`)
-  if (data.address.gush != null) lines.push(`גוש ${data.address.gush} חלקה ${data.address.chelka} · שטח מגרש ${data.address.lot_sqm ?? '—'} מ"ר`)
-  lines.push('')
-  lines.push(`${data.summary_he}`)
-  lines.push(`ציון: ${data.score}/100`)
-  if (data.expected_time_years.max > 0) lines.push(`לוח זמנים: ${data.expected_time_years.min}-${data.expected_time_years.max} שנים`)
-  lines.push(`מסלול: ${trackLabel(data.recommended_track)}`)
-  lines.push('')
-  lines.push('— מה בדקנו —')
-  for (const c of data.categories) {
-    lines.push(`${c.emoji} ${c.title}: ${c.summary} (${c.subscore}/100 · משקל ${c.weight}%)${c.url ? `\n   ${c.url}` : ''}`)
-  }
-  lines.push('')
-  lines.push('— ההמלצה —')
-  data.recommendations.forEach((r, i) => lines.push(`${i + 1}. ${r}`))
-  lines.push('')
-  lines.push('— מקורות —')
-  for (const s of data.sources_used) lines.push(`· ${s.name} — ${s.status} · ${s.duration_ms}ms`)
-  lines.push('')
-  lines.push(data.disclaimer)
-  return lines.join('\n')
 }
 
 function AddressFacts({ data }: { data: EvaluateResponse }) {
