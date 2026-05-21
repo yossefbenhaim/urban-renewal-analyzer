@@ -7,9 +7,15 @@ import {
   ShieldCheck, MapPin, Crown, Clock, Star, Wand2,
 } from 'lucide-react'
 import { AddressPicker } from './features/address/AddressPicker'
+import { MaturityGauge } from './features/report/MaturityGauge'
 import type {
   Bucket, Category, EvaluateResponse, SourceContribution, SourceResult, Track,
 } from './types'
+
+// The maturity gauge sweeps 0 → 95% over this duration before settling on
+// the real score. We hold the response in `pendingReport` until the floor
+// has elapsed, so the user always sees the gauge animation.
+const MIN_LOADING_MS = 5000
 
 export function App() {
   const [addr, setAddr] = useState({ city: '', street: '', building_number: '' })
@@ -23,6 +29,10 @@ export function App() {
     setBusy(true)
     setError(null)
     setReport(null)
+    const startedAt = Date.now()
+    // Wait at least MIN_LOADING_MS before revealing the result — the gauge
+    // animation needs time to play. Promise.all lets the API race the floor.
+    const floor = new Promise<void>(r => setTimeout(r, MIN_LOADING_MS))
     try {
       const res = await fetch('/api/evaluate', {
         method: 'POST',
@@ -34,8 +44,12 @@ export function App() {
         throw new Error(j?.error ?? `שגיאת שרת (${res.status})`)
       }
       const data = (await res.json()) as EvaluateResponse
+      const elapsed = Date.now() - startedAt
+      if (elapsed < MIN_LOADING_MS) await floor
       setReport(data)
     } catch (err: any) {
+      const elapsed = Date.now() - startedAt
+      if (elapsed < MIN_LOADING_MS) await floor
       setError(err?.message ?? 'שגיאה לא צפויה')
     } finally {
       setBusy(false)
@@ -67,10 +81,8 @@ export function App() {
             </div>
           )}
         </form>
-        {report && (
-          <div className="mt-6">
-            <Report data={report} />
-          </div>
+        {(busy || report) && (
+          <ResultSection busy={busy} report={report} />
         )}
         {!report && !busy && <Marketing />}
       </main>
@@ -149,41 +161,72 @@ function Marketing() {
   )
 }
 
-// ─── Report renderer ─────────────────────────────────────────────────
+// ─── Result section — covers both the loading phase and the final report ───
+//
+// The MaturityGauge stays mounted across the busy→done transition, so its
+// internal sweep value continues from where loading left off (≈95%) and
+// then animates smoothly down to the real score.
 
-function Report({ data }: { data: EvaluateResponse }) {
+function ResultSection({ busy, report }: { busy: boolean; report: EvaluateResponse | null }) {
+  if (busy && !report) {
+    return (
+      <div className="mt-8 flex flex-col items-center justify-center py-10 sm:py-16 bg-white rounded-sc-card border border-sc-border shadow-sm">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-sc-text-muted mb-4">
+          בודקים את הכתובת
+        </div>
+        <MaturityGauge phase="loading" size={240} />
+        <div className="mt-5 text-[12px] text-sc-text-muted text-center max-w-[340px] leading-relaxed px-4">
+          מצליבים מקורות פתוחים מ-GovMap, מינהל התכנון, ו-data.gov.il —
+          התהליך לוקח כ-5 שניות.
+        </div>
+      </div>
+    )
+  }
+  if (!report) return null
   return (
-    <div className="space-y-4">
-      <ScoreBanner data={data} />
-      <AddressFacts data={data} />
-      <CategoriesList categories={data.categories} />
-      <SourceBreakdown contributions={data.source_contributions} />
-      <RecommendationCard data={data} />
-      <SourcesFooter sources={data.sources_used} disclaimer={data.disclaimer} />
+    <div className="mt-6 space-y-4">
+      <ScoreHero data={report} />
+      <AddressFacts data={report} />
+      <CategoriesList categories={report.categories} />
+      <SourceBreakdown contributions={report.source_contributions} />
+      <RecommendationCard data={report} />
+      <SourcesFooter sources={report.sources_used} disclaimer={report.disclaimer} />
     </div>
   )
 }
 
-function ScoreBanner({ data }: { data: EvaluateResponse }) {
+function ScoreHero({ data }: { data: EvaluateResponse }) {
   const cls = bucketStyles(data.bucket)
   return (
     <div className={`rounded-sc-card overflow-hidden border ${cls.border} bg-white shadow-sm`}>
-      <div className={`px-5 py-5 ${cls.bg} text-white`}>
-        <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider opacity-85 mb-1">
-          תוצאת ההערכה
-        </div>
-        <div className="text-[20px] sm:text-[24px] font-extrabold leading-tight mb-1">
-          {data.summary_he}
-        </div>
-        <div className="text-[12px] opacity-90 inline-flex items-center gap-1.5">
-          <MapPin size={12} /> {data.address.formatted}
-          {data.address.gush != null && data.address.chelka != null && (
-            <span className="opacity-80">· גוש {data.address.gush} חלקה {data.address.chelka}</span>
-          )}
+      <div className={`px-5 py-6 sm:py-7 ${cls.bg} text-white relative overflow-hidden`}>
+        {/* Subtle radial glow behind the gauge for depth */}
+        <div
+          aria-hidden
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: 'radial-gradient(35% 70% at 50% 50%, rgba(255,255,255,0.12) 0%, transparent 70%)' }}
+        />
+        <div className="relative flex flex-col sm:flex-row items-center gap-5 sm:gap-7">
+          <div className="bg-white/95 rounded-full p-3 shadow-lg shrink-0">
+            <MaturityGauge phase="done" score={data.score} bucket={data.bucket} size={190} startPct={95} />
+          </div>
+          <div className="flex-1 min-w-0 text-center sm:text-start">
+            <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider opacity-85 mb-1">
+              תוצאת ההערכה
+            </div>
+            <div className="text-[20px] sm:text-[24px] font-extrabold leading-tight mb-2">
+              {data.summary_he}
+            </div>
+            <div className="text-[12px] opacity-90 inline-flex items-center gap-1.5 flex-wrap justify-center sm:justify-start">
+              <MapPin size={12} /> {data.address.formatted}
+              {data.address.gush != null && data.address.chelka != null && (
+                <span className="opacity-80">· גוש {data.address.gush} חלקה {data.address.chelka}</span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-2 p-3 bg-white">
-        <Stat label="ציון" value={`${data.score}/100`} accent />
+      <div className="grid grid-cols-2 gap-2 p-3 bg-white">
         <Stat label="לוח זמנים" value={data.expected_time_years.max > 0 ? `${data.expected_time_years.min}-${data.expected_time_years.max} שנים` : '—'} />
         <Stat label="מסלול" value={trackLabel(data.recommended_track)} />
       </div>
