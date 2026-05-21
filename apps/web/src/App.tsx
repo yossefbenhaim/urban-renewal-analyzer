@@ -119,15 +119,28 @@ function Header({ onReset }: { onReset?: () => void }) {
           <div className="text-[16px] font-extrabold leading-tight">Pre-Feasibility AI</div>
           <div className="text-[12px] opacity-85">הערכת היתכנות פינוי-בינוי לפי כתובת</div>
         </div>
-        {onReset && (
-          <button
-            type="button"
-            onClick={onReset}
-            className="ms-auto inline-flex items-center gap-1.5 bg-white text-sc-navy text-[13px] font-extrabold px-3.5 py-2 rounded-sc-pill shadow-sm hover:bg-white/95 transition-colors"
+        <div className="ms-auto flex items-center gap-2">
+          {onReset && (
+            <button
+              type="button"
+              onClick={onReset}
+              className="inline-flex items-center gap-1.5 bg-white text-sc-navy text-[13px] font-extrabold px-3.5 py-2 rounded-sc-pill shadow-sm hover:bg-white/95 transition-colors"
+            >
+              <Plus size={14} strokeWidth={3} /> להערכה חדשה
+            </button>
+          )}
+          <a
+            href="https://silver-castle.byclick.co.il/"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Silver Castle — מערכת ניהול הפרויקט"
+            className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white text-[13px] font-extrabold ps-2.5 pe-3 py-2 rounded-sc-pill border border-white/30 transition-colors"
           >
-            <Plus size={14} strokeWidth={3} /> להערכה חדשה
-          </button>
-        )}
+            <Building2 size={14} strokeWidth={2.5} />
+            <span className="hidden sm:inline">Silver Castle</span>
+            <ExternalLink size={11} className="opacity-75" />
+          </a>
+        </div>
       </div>
     </header>
   )
