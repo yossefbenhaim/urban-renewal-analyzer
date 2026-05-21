@@ -59,7 +59,7 @@ export function App() {
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
-      <main className="flex-1 px-4 sm:px-6 py-6 sm:py-10 max-w-[1100px] w-full me-auto">
+      <main className="flex-1 px-4 sm:px-6 py-6 sm:py-10 max-w-[1100px] w-full mx-auto">
         <Hero />
         <form onSubmit={onEvaluate} className="mt-6 bg-white rounded-sc-card border border-sc-border shadow-sm p-4 sm:p-5">
           <AddressPicker value={addr} onChange={setAddr} disabled={busy} />
@@ -96,7 +96,7 @@ export function App() {
 function Header() {
   return (
     <header className="bg-gradient-to-l from-sc-navy to-sc-primary text-white shadow-sm">
-      <div className="max-w-[1100px] me-auto px-4 sm:px-6 py-4 flex items-center gap-3">
+      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-4 flex items-center gap-3">
         <div className="w-9 h-9 rounded-sc-input bg-white/20 grid place-items-center">
           <Building2 size={20} />
         </div>
@@ -130,7 +130,7 @@ function Hero() {
 function Footer() {
   return (
     <footer className="mt-12 border-t border-sc-border bg-white">
-      <div className="max-w-[1100px] me-auto px-4 sm:px-6 py-6 text-[11px] text-sc-text-muted">
+      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-6 text-[11px] text-sc-text-muted">
         מבוסס על נתוני GovMap, מינהל התכנון (MAVAT), ו-data.gov.il.
         אינו מהווה חוות דעת אדריכלית, משפטית או שמאית רשמית.
       </div>
@@ -208,7 +208,7 @@ function ScoreHero({ data }: { data: EvaluateResponse }) {
         />
         <div className="relative flex flex-col sm:flex-row items-center gap-5 sm:gap-7">
           <div className="bg-white/95 rounded-full p-3 shadow-lg shrink-0">
-            <MaturityGauge phase="done" score={data.score} bucket={data.bucket} size={190} startPct={95} />
+            <MaturityGauge phase="done" score={data.score} bucket={data.bucket} size={190} startPct={100} />
           </div>
           <div className="flex-1 min-w-0 text-center sm:text-start">
             <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider opacity-85 mb-1">

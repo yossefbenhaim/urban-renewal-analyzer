@@ -27,7 +27,7 @@ interface Props {
 }
 
 const LOADING_MS  = 5000
-const LOADING_CAP = 95   // % the ring reaches before the API responds
+const LOADING_CAP = 100   // sweep completes a full ring; a ✓ marks the end-of-load
 const SUB_LABELS  = [
   'מתחבר ל-GovMap…',
   'מאתר גוש וחלקה…',
@@ -114,11 +114,10 @@ export function MaturityGauge({ phase, score, bucket, size = 220, startPct }: Pr
     ? BUCKET_COLORS[bucket]
     : { stroke: LOADING_STROKE, glow: LOADING_GLOW, label: SUB_LABELS[subIdx] }
 
-  const centerNumber = phase === 'done' && score != null
-    ? Math.round(pct)
-    : Math.round(pct)
-
-  const centerSuffix = phase === 'done' ? <span style={{ fontSize: size * 0.13, fontWeight: 500, color: '#8e8e9e' }}>/100</span> : <span style={{ fontSize: size * 0.13, color: '#8e8e9e' }}>%</span>
+  // End-of-load marker: when the sweep crosses ~99%, swap the percentage
+  // readout for a green checkmark. Keeps the "we finished checking sources"
+  // beat visible to the user before the score animation kicks in.
+  const showCheck = phase === 'loading' && pct >= 99
 
   return (
     <div className="flex flex-col items-center" style={{ width: size }}>
@@ -142,7 +141,7 @@ export function MaturityGauge({ phase, score, bucket, size = 220, startPct }: Pr
             cy={size / 2}
             r={R}
             fill="none"
-            stroke={palette.stroke}
+            stroke={showCheck ? '#0e9f6e' : palette.stroke}
             strokeWidth={STROKE}
             strokeLinecap="round"
             strokeDasharray={C}
@@ -155,31 +154,53 @@ export function MaturityGauge({ phase, score, bucket, size = 220, startPct }: Pr
           className="absolute inset-0 flex flex-col items-center justify-center"
           style={{ pointerEvents: 'none' }}
         >
-          <div
-            className="tabular-nums font-extrabold"
-            style={{
-              fontSize: size * 0.32,
-              lineHeight: 1,
-              color: phase === 'done' ? palette.stroke : '#1e3a5f',
-              letterSpacing: '-0.02em',
-            }}
-          >
-            {centerNumber}
-            {centerSuffix}
+          {showCheck ? (
+            <svg
+              width={size * 0.38}
+              height={size * 0.38}
+              viewBox="0 0 24 24"
+              fill="none"
+              style={{ animation: 'gauge-pop 0.5s cubic-bezier(0.2,0.7,0.2,1.2) both' }}
+              aria-hidden
+            >
+              <path
+                d="M5 12l5 5 9-10"
+                stroke="#0e9f6e"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ) : (
+            <div
+              className="tabular-nums font-extrabold"
+              style={{
+                fontSize: size * 0.32,
+                lineHeight: 1,
+                color: phase === 'done' ? palette.stroke : '#1e3a5f',
+                letterSpacing: '-0.02em',
+              }}
+            >
+              {Math.round(pct)}
+              {phase === 'done'
+                ? <span style={{ fontSize: size * 0.13, fontWeight: 500, color: '#8e8e9e' }}>/100</span>
+                : <span style={{ fontSize: size * 0.13, color: '#8e8e9e' }}>%</span>}
+            </div>
+          )}
+        </div>
+        {/* Local keyframes for the checkmark pop. */}
+        <style>{`@keyframes gauge-pop { 0%{transform:scale(0.4);opacity:0} 60%{transform:scale(1.15);opacity:1} 100%{transform:scale(1)} }`}</style>
+      </div>
+      {/* Sub-label visible during loading only — it carries the "currently
+          fetching X…" rotation. Once done, the score number itself is the
+          headline, so no label clutters the bottom. */}
+      {phase === 'loading' && !showCheck && (
+        <div className="mt-4 text-center" style={{ minHeight: 22 }}>
+          <div className="text-[13px] font-bold" style={{ color: '#8b6f47' }}>
+            {SUB_LABELS[subIdx]}
           </div>
         </div>
-      </div>
-      <div
-        className="mt-4 text-center transition-opacity duration-300"
-        style={{ minHeight: 22 }}
-      >
-        <div
-          className="text-[13px] font-bold"
-          style={{ color: phase === 'done' ? palette.stroke : '#8b6f47' }}
-        >
-          {palette.label}
-        </div>
-      </div>
+      )}
     </div>
   )
 }
