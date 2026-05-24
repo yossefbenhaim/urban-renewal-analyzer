@@ -30,16 +30,16 @@ async function ensureDir() {
   dirReady = true
 }
 
-// Fire-and-forget POST to the Asset Rise CRM. tRPC HTTP shape: the request
-// body must be { json: <input> } when content-type is application/json.
-// Failures are logged but never block the user — local jsonl is the source
-// of truth, CRM is just a mirror.
+// Fire-and-forget POST to the Asset Rise CRM. tRPC v10 single-procedure
+// HTTP transport (no data transformer) expects the body to be the raw
+// input object. Failures are logged but never block the user — local
+// jsonl is the source of truth, CRM is just a mirror.
 async function forwardToCrm(payload: Record<string, unknown>): Promise<void> {
   try {
     const res = await fetch(CRM_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ json: payload }),
+      body: JSON.stringify(payload),
     })
     if (!res.ok) {
       const text = await res.text().catch(() => '')
