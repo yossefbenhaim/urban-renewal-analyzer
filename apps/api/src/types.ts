@@ -55,11 +55,14 @@ export interface EvaluateRequest {
   city: string
   street: string
   building_number: string
-  // Optional resident-supplied facts. When provided they drive the new
-  // `density` + `commercial_mix` categories. When missing the engine falls
-  // back to lot-only heuristics for density and skips commercial entirely.
+  // Optional resident-supplied facts. When provided they drive the
+  // `density` / `commercial_mix` / `building_age` categories. When missing
+  // the engine falls back to lot-only density and marks the other two as
+  // "no data". `year_built` (4-digit calendar year) also drives a HARD CAP
+  // on the final score — see engine/recommend.ts:ageCap.
   apartments_count?: number
   commercial?: CommercialLevel
+  year_built?: number
 }
 
 // Categorized signal view — the report UI renders one row per category in
@@ -75,6 +78,7 @@ export type CategoryKey =
   | 'density'             // יחס שטח מגרש ↔ מס׳ דירות (חדש)
   | 'commercial_mix'      // מורכבות מסחרית בבניין (חדש)
   | 'city_build_activity' // אתרי בנייה פעילים בעיר (חדש)
+  | 'building_age'        // גיל הבניין — קלט משתמש, חוסם hard-cap לבניינים חדשים
 
 export type CommercialLevel = 'none' | 'small' | 'large' | 'unknown'
 

@@ -19,6 +19,7 @@ export type CategoryKey =
   | 'density'
   | 'commercial_mix'
   | 'city_build_activity'
+  | 'building_age'
 
 export type CommercialLevel = 'none' | 'small' | 'large' | 'unknown'
 

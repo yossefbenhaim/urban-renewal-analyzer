@@ -19,7 +19,7 @@ import { fetchLandUse } from '../sources/landuse.js'
 import { fetchBuildingSites } from '../sources/buildingsites.js'
 import { bucketize, rankSignals } from '../engine/score.js'
 import {
-  expectedTimeYears, recommendTrack, recommendations,
+  ageCap, expectedTimeYears, recommendTrack, recommendations,
   singleBuildingFeasible, summaryHe,
 } from '../engine/recommend.js'
 import { evaluateRubric } from '../engine/rubric.js'
@@ -35,6 +35,9 @@ const Input = z.object({
   building_number:  z.string().trim().min(1),
   apartments_count: z.number().int().min(1).max(500).optional(),
   commercial:       z.enum(['none', 'small', 'large', 'unknown']).optional(),
+  // 4-digit calendar year. 1900 floor catches typos; +1 ceiling lets users
+  // mark a brand-new building (current year or "completing next year").
+  year_built:       z.number().int().min(1900).max(new Date().getFullYear() + 1).optional(),
 })
 
 const DISCLAIMER =
@@ -68,11 +71,11 @@ export async function evaluateHandler(req: Request, res: Response) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'invalid input' })
     return
   }
-  const { city, street, building_number, apartments_count, commercial } = parsed.data
+  const { city, street, building_number, apartments_count, commercial, year_built } = parsed.data
   // Cache key includes the user-supplied facts so different inputs for the
   // same address produce distinct cached reports.
   const key = cacheKey(city, street, building_number) +
-    `|${apartments_count ?? '_'}|${commercial ?? '_'}`
+    `|${apartments_count ?? '_'}|${commercial ?? '_'}|${year_built ?? '_'}`
 
   const cached = reportCache.get(key)
   if (cached) {
@@ -126,11 +129,15 @@ export async function evaluateHandler(req: Request, res: Response) {
   // Deterministic rubric — same inputs always produce the same numbers,
   // and each source contributes a fixed share of the report regardless of
   // which signals fired this run. Defined later inside `response` below.
-  const userInputs = { apartments_count, commercial }
+  const userInputs = { apartments_count, commercial, year_built }
   const rubric  = evaluateRubric(ranked, { lot_sqm: address.lot_sqm }, [], userInputs)
-  const score   = rubric.score
-  const bucket  = bucketize(score)
-  const engineCtx = { address, signals: ranked, score, bucket }
+  // Hard cap by building age — a 5-year-old building can't score 80 no
+  // matter how favorable the rest of the rubric is. See recommend.ts.
+  const rawScore = rubric.score
+  const cap      = ageCap(year_built)
+  const score    = cap != null ? Math.min(rawScore, cap) : rawScore
+  const bucket   = bucketize(score)
+  const engineCtx = { address, signals: ranked, score, bucket, year_built }
   const track = recommendTrack(engineCtx)
 
   const sourceOrder: Array<{ name: SourceName; run: RunResult }> = [

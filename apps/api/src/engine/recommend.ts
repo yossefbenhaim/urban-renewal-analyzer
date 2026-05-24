@@ -15,9 +15,32 @@ interface Inputs {
   signals: Signal[]
   score: number
   bucket: Bucket
+  year_built?: number
 }
 
-export function recommendTrack({ address, signals, score }: Inputs): Track {
+// Hard cap by building age — the single most decisive factor. Even if the
+// area is perfect on every other dimension, a brand-new building is not a
+// realistic renewal candidate. Returns the MAX score allowed for the given
+// year, or null when no cap should be applied (no input, or old enough).
+//
+// Aligned with the building_age rubric thresholds in engine/rubric.ts.
+export function ageCap(yearBuilt: number | undefined): number | null {
+  if (yearBuilt == null || !Number.isFinite(yearBuilt)) return null
+  const age = new Date().getFullYear() - yearBuilt
+  if (age <= 5)  return 15
+  if (age <= 15) return 30
+  if (age <= 25) return 55
+  return null
+}
+
+export function recommendTrack({ address, signals, score, year_built }: Inputs): Track {
+  // Age veto: brand-new buildings get a hard 'unlikely' regardless of
+  // anything else. The 15-pt cap above means score < 30 already, but make
+  // the track explicit.
+  if (year_built != null && Number.isFinite(year_built)) {
+    const age = new Date().getFullYear() - year_built
+    if (age <= 5) return 'unlikely'
+  }
   if (score < 30) return 'unlikely'
   const lot = address.lot_sqm ?? 0
   const declared = signals.some(s => s.source === 'govmap' && /מתחם/.test(s.title))
@@ -45,7 +68,15 @@ export function expectedTimeYears(track: Track): { min: number; max: number } {
 }
 
 export function summaryHe(input: Inputs): string {
-  const { bucket, score } = input
+  const { bucket, score, year_built } = input
+  // If the building age explains a capped score, lead with that so the
+  // user sees WHY the score is low — the rest is just supporting detail.
+  if (year_built != null && Number.isFinite(year_built)) {
+    const age = new Date().getFullYear() - year_built
+    if (age <= 5)  return `בניין חדש (${age} שנים) — פינוי-בינוי לא רלוונטי. הציון נחתך ל-${score}/100.`
+    if (age <= 15) return `בניין צעיר (${age} שנים) — סיכוי נמוך מאוד בעשור הקרוב. הציון נחתך ל-${score}/100.`
+    if (age <= 25) return `בניין בגיל בינוני (${age} שנים) — עדיין מוקדם. הציון נחתך ל-${score}/100.`
+  }
   switch (bucket) {
     case 'very_high': return `בשלות גבוהה מאוד (${score}/100) — סיכוי גבוה לפרויקט פעיל בשנים הקרובות.`
     case 'high':      return `בשלות גבוהה (${score}/100) — האזור מתבשל לכיוון התחדשות.`
@@ -56,6 +87,26 @@ export function summaryHe(input: Inputs): string {
 }
 
 export function recommendations(input: Inputs, track: Track): string[] {
+  // Age-based veto override — when the building is too new, the standard
+  // "collect signatures" advice is misleading. Tell the user the truth.
+  if (input.year_built != null && Number.isFinite(input.year_built)) {
+    const age = new Date().getFullYear() - input.year_built
+    if (age <= 5) {
+      return [
+        'בניין חדש — אין סיבה הנדסית או כלכלית להריסה ובנייה מחדש',
+        'תהליך פינוי-בינוי דורש בדרך כלל בניין בן 25+ שנים',
+        'אפשר לעקוב אחרי האזור — בעוד 15-20 שנים יתכן שהתמונה תשתנה',
+        'אם יש בעיה בטיחותית/הנדסית ספציפית — להתייעץ עם מהנדס מבנים',
+      ]
+    }
+    if (age <= 15) {
+      return [
+        'הבניין עדיין צעיר — לרוב נדרש גיל 25+ לפני שפינוי-בינוי הופך לכדאי',
+        'מומלץ להתעדכן שוב בעוד 5-10 שנים',
+        'אפשר לבחון תוספות חוקיות בלי הריסה (מרפסות, מחסנים, יחידות דיור נוספות בקומה)',
+      ]
+    }
+  }
   const base = [
     'איסוף חתימות של 80%+ מהדיירים בבניין',
     'פנייה לעורך דין מקרקעין המתמחה בהתחדשות עירונית',

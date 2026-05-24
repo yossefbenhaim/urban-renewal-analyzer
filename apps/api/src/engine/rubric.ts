@@ -26,13 +26,14 @@ import type {
 
 export const CATEGORY_WEIGHTS: Record<CategoryKey, number> = {
   planning_schemes:    20,
-  urban_renewal_area:  18,
-  municipal_policy:    12,
+  urban_renewal_area:  15,   // was 18 — 3 pts moved to building_age
+  municipal_policy:     7,   // was 12 — 5 pts moved to building_age
   land_use:            12,
-  density:             18,   // ↑ replaces stand-alone lot_size — now uses ratio
-  commercial_mix:       8,   // ← new, complexity flag
-  projects_in_city:     7,   // was 12 — 5 pts moved to city_build_activity
-  city_build_activity:  5,   // ← active construction sites (משרד העבודה)
+  density:             11,   // was 18 — 7 pts moved to building_age
+  commercial_mix:       8,
+  projects_in_city:     7,
+  city_build_activity:  5,
+  building_age:        15,   // ← user-supplied year_built; also drives hard cap
 }
 
 // Which source "owns" each category. Used to compute the deterministic
@@ -46,9 +47,11 @@ export const CATEGORY_SOURCE: Record<CategoryKey, SourceName> = {
   density:             'govmap',                       // lot size from GovMap + user-supplied apartments
   commercial_mix:      'govmap',                       // category is driven by user input
   city_build_activity: 'data.gov.il.buildingsites',    // אתרי בנייה פעילים — משרד העבודה
+  building_age:        'govmap',                       // conceptually about the building/parcel; sourced from user input today
 }
 
 const ORDER: CategoryKey[] = [
+  'building_age',
   'planning_schemes',
   'urban_renewal_area',
   'projects_in_city',
@@ -60,6 +63,7 @@ const ORDER: CategoryKey[] = [
 ]
 
 const TITLES: Record<CategoryKey, string> = {
+  building_age:        'גיל הבניין',
   planning_schemes:    'תכנון וזכויות בנייה',
   urban_renewal_area:  'מתחם התחדשות מוכרז',
   projects_in_city:    'פרויקטים פעילים באזור',
@@ -71,6 +75,7 @@ const TITLES: Record<CategoryKey, string> = {
 }
 
 const PLACEHOLDER_IMPACT: Record<CategoryKey, string> = {
+  building_age:        'לא צוינה שנת בנייה — מלא כדי לקבל ציון מדויק. בניינים חדשים מקבלים סיכוי נמוך משמעותית גם אם הסביבה תומכת.',
   planning_schemes:    'אין כרגע תכנון פעיל — תהליך התחדשות יתחיל מאוחר יותר.',
   urban_renewal_area:  'הכתובת לא בתוך מתחם מוכרז — דורש יזם שיגדיר מתחם חדש.',
   projects_in_city:    'אין פרויקטי התחדשות בביצוע כעת באזור.',
@@ -213,6 +218,34 @@ function rubricDensity(lotSqm: number | undefined, aptCount: number | undefined)
   return                    { subscore:  10, label: `${tag} — קשה מאוד`,     emoji: '⚠️', detail: tag, found: true }
 }
 
+// Building-age rubric — the single most predictive factor for whether
+// pinui-binui / TMA 38 is realistic. Driven entirely by user-supplied
+// `year_built`. The thresholds are aligned with the hard cap in
+// recommend.ts:ageCap so the category contribution and the cap move
+// together: a brand-new building scores ~5 here AND has the final
+// score clipped at 15.
+//
+// Threshold table (age = currentYear - year_built):
+//   ≤ 5y   →   5    ⚠️   חדש מאוד, לא רלוונטי
+//   ≤15y   →  20    ⚠️   חדש, לא רלוונטי בקרוב
+//   ≤25y   →  50    ·    גיל בינוני
+//   ≤40y   →  80    ✅   בשל לפינוי-בינוי
+//   ≤60y   →  95    ✅   בשל מאוד
+//   > 60y  → 100    ✅   מועמד מובהק
+function rubricBuildingAge(yearBuilt: number | undefined): RubricOutcome {
+  if (yearBuilt == null || !Number.isFinite(yearBuilt)) {
+    return { subscore: 50, label: 'שנת בנייה לא צוינה', emoji: '·', found: false }
+  }
+  const age = new Date().getFullYear() - yearBuilt
+  const tag = `${yearBuilt} (גיל הבניין: ${age})`
+  if (age <= 5)  return { subscore:   5, label: `${tag} — חדש מאוד, פינוי-בינוי לא רלוונטי`, emoji: '⚠️', detail: tag, found: true }
+  if (age <= 15) return { subscore:  20, label: `${tag} — חדש, רחוק מהתחדשות`,                 emoji: '⚠️', detail: tag, found: true }
+  if (age <= 25) return { subscore:  50, label: `${tag} — בינוני, מוקדם עדיין`,                emoji: '·',  detail: tag, found: true }
+  if (age <= 40) return { subscore:  80, label: `${tag} — בשל לפינוי-בינוי`,                   emoji: '✅', detail: tag, found: true }
+  if (age <= 60) return { subscore:  95, label: `${tag} — בשל מאוד`,                            emoji: '✅', detail: tag, found: true }
+  return                { subscore: 100, label: `${tag} — מועמד מובהק להתחדשות`,                emoji: '✅', detail: tag, found: true }
+}
+
 // City build-activity rubric — derived from the Ministry of Labor list.
 // Reads the single signal emitted by the buildingsites adapter and turns its
 // raw counts into a deterministic 0..100 sub-score.
@@ -265,6 +298,7 @@ function rubricCommercialMix(level: CommercialLevel | undefined): RubricOutcome 
 }
 
 const SUMMARY_HEAD: Record<CategoryKey, string> = {
+  building_age:        'גיל הבניין',
   planning_schemes:    'תכנון וזכויות בנייה',
   urban_renewal_area:  'מתחם התחדשות מוכרז',
   projects_in_city:    'פרויקטים פעילים באזור',
@@ -278,6 +312,7 @@ const SUMMARY_HEAD: Record<CategoryKey, string> = {
 function impactCopy(key: CategoryKey, found: boolean): string {
   if (!found) return PLACEHOLDER_IMPACT[key]
   switch (key) {
+    case 'building_age':        return 'גיל הבניין הוא הגורם המוביל בהיתכנות פינוי-בינוי. בניין חדש לא יהרס גם כשהסביבה תומכת; בניין ישן מועמד טבעי להתחדשות.'
     case 'planning_schemes':    return 'יזם יכול לקדם בנייה מחדש על בסיס תכנון קיים.'
     case 'urban_renewal_area':  return 'הכרזה רשמית של רשות ההתחדשות — מסלול ברור ליזמים.'
     case 'projects_in_city':    return 'אזור מתעורר — יזמים נכנסים אקטיבית.'
@@ -300,6 +335,7 @@ export interface RubricResult {
 export interface UserInputs {
   apartments_count?: number
   commercial?: CommercialLevel
+  year_built?: number
 }
 
 export function evaluateRubric(
@@ -319,6 +355,7 @@ export function evaluateRubric(
 
   // Run rubrics in stable order.
   const outcomes: Record<CategoryKey, RubricOutcome> = {
+    building_age:        rubricBuildingAge(userInputs.year_built),
     planning_schemes:    rubricPlanningSchemes(byKey.get('planning_schemes')    ?? []),
     urban_renewal_area:  rubricUrbanRenewalArea(byKey.get('urban_renewal_area') ?? []),
     projects_in_city:    rubricProjectsInCity(byKey.get('projects_in_city')     ?? []),
