@@ -25,31 +25,34 @@ import type {
 // physical/policy/usage.
 
 export const CATEGORY_WEIGHTS: Record<CategoryKey, number> = {
-  planning_schemes:   20,
-  urban_renewal_area: 18,
-  municipal_policy:   12,
-  land_use:           12,
-  density:            18,   // ↑ replaces stand-alone lot_size — now uses ratio
-  commercial_mix:      8,   // ← new, complexity flag
-  projects_in_city:   12,
+  planning_schemes:    20,
+  urban_renewal_area:  18,
+  municipal_policy:    12,
+  land_use:            12,
+  density:             18,   // ↑ replaces stand-alone lot_size — now uses ratio
+  commercial_mix:       8,   // ← new, complexity flag
+  projects_in_city:     7,   // was 12 — 5 pts moved to city_build_activity
+  city_build_activity:  5,   // ← active construction sites (משרד העבודה)
 }
 
 // Which source "owns" each category. Used to compute the deterministic
 // per-source share of the report (always sums to 100).
 export const CATEGORY_SOURCE: Record<CategoryKey, SourceName> = {
-  planning_schemes:   'mavat',
-  urban_renewal_area: 'govmap',
-  municipal_policy:   'data.gov.il',
-  projects_in_city:   'data.gov.il',
-  land_use:           'mavat.landuse',
-  density:            'govmap',          // lot size from GovMap + user-supplied apartments
-  commercial_mix:     'govmap',          // category is driven by user input
+  planning_schemes:    'mavat',
+  urban_renewal_area:  'govmap',
+  municipal_policy:    'data.gov.il',
+  projects_in_city:    'data.gov.il',
+  land_use:            'mavat.landuse',
+  density:             'govmap',                       // lot size from GovMap + user-supplied apartments
+  commercial_mix:      'govmap',                       // category is driven by user input
+  city_build_activity: 'data.gov.il.buildingsites',    // אתרי בנייה פעילים — משרד העבודה
 }
 
 const ORDER: CategoryKey[] = [
   'planning_schemes',
   'urban_renewal_area',
   'projects_in_city',
+  'city_build_activity',
   'municipal_policy',
   'land_use',
   'density',
@@ -60,6 +63,7 @@ const TITLES: Record<CategoryKey, string> = {
   planning_schemes:    'תכנון וזכויות בנייה',
   urban_renewal_area:  'מתחם התחדשות מוכרז',
   projects_in_city:    'פרויקטים פעילים באזור',
+  city_build_activity: 'פעילות בנייה בעיר',
   municipal_policy:    'מדיניות עירונית',
   land_use:            'שימושי קרקע',
   density:             'יחס מגרש ↔ דירות',
@@ -67,13 +71,14 @@ const TITLES: Record<CategoryKey, string> = {
 }
 
 const PLACEHOLDER_IMPACT: Record<CategoryKey, string> = {
-  planning_schemes:   'אין כרגע תכנון פעיל — תהליך התחדשות יתחיל מאוחר יותר.',
-  urban_renewal_area: 'הכתובת לא בתוך מתחם מוכרז — דורש יזם שיגדיר מתחם חדש.',
-  projects_in_city:   'אין פרויקטי התחדשות בביצוע כעת באזור.',
-  municipal_policy:   'אין רשימת התחדשות מוכרזת בעיר.',
-  land_use:           'יעוד הקרקע לא נטען — אין השפעה ידועה על ההיתכנות.',
-  density:            'לא צוין מספר דירות — ההערכה מבוססת על שטח המגרש בלבד.',
-  commercial_mix:     'לא צוין האם יש מסחרי בבניין — קטגוריה זו זמינה לאחר שתסמן.',
+  planning_schemes:    'אין כרגע תכנון פעיל — תהליך התחדשות יתחיל מאוחר יותר.',
+  urban_renewal_area:  'הכתובת לא בתוך מתחם מוכרז — דורש יזם שיגדיר מתחם חדש.',
+  projects_in_city:    'אין פרויקטי התחדשות בביצוע כעת באזור.',
+  city_build_activity: 'אין אתרי בנייה פעילים בעיר ברגע זה — אזור שקט.',
+  municipal_policy:    'אין רשימת התחדשות מוכרזת בעיר.',
+  land_use:            'יעוד הקרקע לא נטען — אין השפעה ידועה על ההיתכנות.',
+  density:             'לא צוין מספר דירות — ההערכה מבוססת על שטח המגרש בלבד.',
+  commercial_mix:      'לא צוין האם יש מסחרי בבניין — קטגוריה זו זמינה לאחר שתסמן.',
 }
 
 // ─── Per-category rubrics ───────────────────────────────────────────
@@ -208,6 +213,28 @@ function rubricDensity(lotSqm: number | undefined, aptCount: number | undefined)
   return                    { subscore:  10, label: `${tag} — קשה מאוד`,     emoji: '⚠️', detail: tag, found: true }
 }
 
+// City build-activity rubric — derived from the Ministry of Labor list.
+// Reads the single signal emitted by the buildingsites adapter and turns its
+// raw counts into a deterministic 0..100 sub-score.
+//
+// Threshold table (residential sites in the city):
+//   ≥20 → 100  ·  10–19 → 80  ·  5–9 → 60  ·  1–4 → 40  ·  0 → 10
+function rubricCityBuildActivity(signals: Signal[]): RubricOutcome {
+  const s = pickStrongest(signals)
+  if (!s) return { subscore: 15, label: 'אין נתון', emoji: '·', found: false }
+  // Description is "נרשמו N אתרי בנייה פעילים בעיר, מתוכם M למגורים..." —
+  // pull the second number (residential count).
+  const m = s.description.match(/מתוכם\s*(\d+)\s*למגורים/)
+  const residential = m ? parseInt(m[1], 10) : 0
+  if (residential >= 20) return { subscore: 100, label: `${residential} אתרי בנייה למגורים`, emoji: '✅', detail: s.description, found: true }
+  if (residential >= 10) return { subscore:  80, label: `${residential} אתרי בנייה למגורים`, emoji: '✅', detail: s.description, found: true }
+  if (residential >=  5) return { subscore:  60, label: `${residential} אתרי בנייה למגורים`, emoji: '✅', detail: s.description, found: true }
+  if (residential >=  1) return { subscore:  40, label: `${residential} אתרי בנייה למגורים`, emoji: '·', detail: s.description, found: true }
+  // Sites exist but none residential — still better than zero overall.
+  if (/אתרי בנייה פעילים/.test(s.title)) return { subscore: 25, label: 'בנייה לא־מגורים בעיר', emoji: '·', detail: s.description, found: true }
+  return { subscore: 10, label: 'אין בנייה פעילה', emoji: '⚠️', detail: s.description, found: true }
+}
+
 // Commercial-mix rubric — appraiser flag, not a blocker.
 // User-supplied: 'none' / 'small' / 'large' / 'unknown'.
 function rubricCommercialMix(level: CommercialLevel | undefined): RubricOutcome {
@@ -238,25 +265,27 @@ function rubricCommercialMix(level: CommercialLevel | undefined): RubricOutcome 
 }
 
 const SUMMARY_HEAD: Record<CategoryKey, string> = {
-  planning_schemes:   'תכנון וזכויות בנייה',
-  urban_renewal_area: 'מתחם התחדשות מוכרז',
-  projects_in_city:   'פרויקטים פעילים באזור',
-  municipal_policy:   'מדיניות עירונית',
-  land_use:           'שימושי קרקע',
-  density:            'יחס מגרש ↔ דירות',
-  commercial_mix:     'מורכבות מסחרית',
+  planning_schemes:    'תכנון וזכויות בנייה',
+  urban_renewal_area:  'מתחם התחדשות מוכרז',
+  projects_in_city:    'פרויקטים פעילים באזור',
+  city_build_activity: 'פעילות בנייה בעיר',
+  municipal_policy:    'מדיניות עירונית',
+  land_use:            'שימושי קרקע',
+  density:             'יחס מגרש ↔ דירות',
+  commercial_mix:      'מורכבות מסחרית',
 }
 
 function impactCopy(key: CategoryKey, found: boolean): string {
   if (!found) return PLACEHOLDER_IMPACT[key]
   switch (key) {
-    case 'planning_schemes':   return 'יזם יכול לקדם בנייה מחדש על בסיס תכנון קיים.'
-    case 'urban_renewal_area': return 'הכרזה רשמית של רשות ההתחדשות — מסלול ברור ליזמים.'
-    case 'projects_in_city':   return 'אזור מתעורר — יזמים נכנסים אקטיבית.'
-    case 'municipal_policy':   return 'העירייה תומכת באופן פעיל — תהליכים מהירים יותר.'
-    case 'land_use':           return 'יעוד הקרקע משפיע ישירות על האפשרות לבנייה חדשה.'
-    case 'density':            return 'יחס שטח המגרש למספר הדירות קובע אם פרויקט עצמאי כלכלי או נדרש חיבור למתחם.'
-    case 'commercial_mix':     return 'שטחי מסחר בבניין מוסיפים מורכבות תכנונית ומשפטית — לא חוסמים אך מצריכים פתרונות.'
+    case 'planning_schemes':    return 'יזם יכול לקדם בנייה מחדש על בסיס תכנון קיים.'
+    case 'urban_renewal_area':  return 'הכרזה רשמית של רשות ההתחדשות — מסלול ברור ליזמים.'
+    case 'projects_in_city':    return 'אזור מתעורר — יזמים נכנסים אקטיבית.'
+    case 'city_build_activity': return 'בנייה בפועל בעיר מוכיחה שיש קבלנים פעילים, צוותי ביצוע ומימון זמין — תרגום של מדיניות לפעולה.'
+    case 'municipal_policy':    return 'העירייה תומכת באופן פעיל — תהליכים מהירים יותר.'
+    case 'land_use':            return 'יעוד הקרקע משפיע ישירות על האפשרות לבנייה חדשה.'
+    case 'density':             return 'יחס שטח המגרש למספר הדירות קובע אם פרויקט עצמאי כלכלי או נדרש חיבור למתחם.'
+    case 'commercial_mix':      return 'שטחי מסחר בבניין מוסיפים מורכבות תכנונית ומשפטית — לא חוסמים אך מצריכים פתרונות.'
   }
 }
 
@@ -290,13 +319,14 @@ export function evaluateRubric(
 
   // Run rubrics in stable order.
   const outcomes: Record<CategoryKey, RubricOutcome> = {
-    planning_schemes:   rubricPlanningSchemes(byKey.get('planning_schemes')   ?? []),
-    urban_renewal_area: rubricUrbanRenewalArea(byKey.get('urban_renewal_area') ?? []),
-    projects_in_city:   rubricProjectsInCity(byKey.get('projects_in_city')     ?? []),
-    municipal_policy:   rubricMunicipalPolicy(byKey.get('municipal_policy')   ?? []),
-    land_use:           rubricLandUse(byKey.get('land_use')                   ?? []),
-    density:            rubricDensity(address.lot_sqm, userInputs.apartments_count),
-    commercial_mix:     rubricCommercialMix(userInputs.commercial),
+    planning_schemes:    rubricPlanningSchemes(byKey.get('planning_schemes')    ?? []),
+    urban_renewal_area:  rubricUrbanRenewalArea(byKey.get('urban_renewal_area') ?? []),
+    projects_in_city:    rubricProjectsInCity(byKey.get('projects_in_city')     ?? []),
+    city_build_activity: rubricCityBuildActivity(byKey.get('city_build_activity') ?? []),
+    municipal_policy:    rubricMunicipalPolicy(byKey.get('municipal_policy')    ?? []),
+    land_use:            rubricLandUse(byKey.get('land_use')                    ?? []),
+    density:             rubricDensity(address.lot_sqm, userInputs.apartments_count),
+    commercial_mix:      rubricCommercialMix(userInputs.commercial),
   }
 
   // Build Category[] rows + accumulate the weighted score. We keep a
@@ -382,18 +412,20 @@ export function evaluateRubric(
 
 function sourceFailedNote(name: SourceName): string {
   switch (name) {
-    case 'govmap':        return 'GovMap לא הגיב בזמן — לא הצלחנו לבדוק גוש/חלקה/מתחם מוכרז בריצה הזו.'
-    case 'mavat.landuse': return 'שכבת שימושי הקרקע של מבא"ת לא הגיבה בזמן.'
-    case 'mavat':         return 'מאגר התכניות של מינהל התכנון לא הגיב בזמן.'
-    case 'data.gov.il':   return 'data.gov.il לא הגיב בזמן (CKAN איטי / 5xx).'
+    case 'govmap':                     return 'GovMap לא הגיב בזמן — לא הצלחנו לבדוק גוש/חלקה/מתחם מוכרז בריצה הזו.'
+    case 'mavat.landuse':              return 'שכבת שימושי הקרקע של מבא"ת לא הגיבה בזמן.'
+    case 'mavat':                      return 'מאגר התכניות של מינהל התכנון לא הגיב בזמן.'
+    case 'data.gov.il':                return 'data.gov.il לא הגיב בזמן (CKAN איטי / 5xx).'
+    case 'data.gov.il.buildingsites':  return 'רשימת אתרי הבנייה של משרד העבודה לא הגיבה בזמן.'
   }
 }
 
 function sourceZeroNote(name: SourceName): string {
   switch (name) {
-    case 'govmap':        return 'GovMap בדק את המתחם המוכרז וגודל המגרש — שני הקריטריונים יצאו ניטרליים.'
-    case 'mavat.landuse': return 'שכבת שימושי הקרקע של מבא"ת החזירה ציון נמוך — היעוד לא מקדם פרויקט.'
-    case 'mavat':         return 'אין תכניות פעילות מתאימות באזור.'
-    case 'data.gov.il':   return 'העיר לא ברשימת ההתחדשות הרשמית.'
+    case 'govmap':                     return 'GovMap בדק את המתחם המוכרז וגודל המגרש — שני הקריטריונים יצאו ניטרליים.'
+    case 'mavat.landuse':              return 'שכבת שימושי הקרקע של מבא"ת החזירה ציון נמוך — היעוד לא מקדם פרויקט.'
+    case 'mavat':                      return 'אין תכניות פעילות מתאימות באזור.'
+    case 'data.gov.il':                return 'העיר לא ברשימת ההתחדשות הרשמית.'
+    case 'data.gov.il.buildingsites':  return 'אין אתרי בנייה פעילים בעיר ברגע זה.'
   }
 }

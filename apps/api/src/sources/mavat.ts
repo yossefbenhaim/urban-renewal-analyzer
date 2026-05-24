@@ -50,6 +50,41 @@ function classifyStatus(s?: string): {
   return { weight: 2, kind: 'neutral', label: 'תכנית רשומה' }
 }
 
+// Freshness modifier — a 2024 deposit drives momentum; a 1998 deposit doesn't.
+// Returns +1 / 0 / -1 "band" shifts so a plan in `בעיבוד` (4) can climb to
+// `בהפקדה`-tier (8) when fresh, or a `מאושרת` (12) drops to `בהפקדה`-tier (8)
+// when ancient. We never push below `תכנית רשומה` (2) or above approved (12).
+function freshnessShift(depositingMs?: number | null): -1 | 0 | 1 {
+  if (depositingMs == null || !Number.isFinite(depositingMs)) return 0
+  const ageMs = Date.now() - depositingMs
+  const months = ageMs / (1000 * 60 * 60 * 24 * 30)
+  if (months <= 24) return 1
+  if (months >= 120) return -1
+  return 0
+}
+
+function applyFreshness(
+  base: { weight: number; kind: 'positive' | 'neutral'; label: string },
+  shift: -1 | 0 | 1,
+): { weight: number; kind: 'positive' | 'neutral'; label: string } {
+  if (shift === 0) return base
+  const tiers = [
+    { weight: 2,  kind: 'neutral'  as const, label: 'תכנית רשומה'   },
+    { weight: 4,  kind: 'positive' as const, label: 'תכנית בעיבוד'  },
+    { weight: 8,  kind: 'positive' as const, label: 'תכנית בהפקדה'  },
+    { weight: 12, kind: 'positive' as const, label: 'תכנית מאושרת'  },
+  ]
+  const i = tiers.findIndex(t => t.weight === base.weight)
+  if (i < 0) return base
+  const next = Math.max(0, Math.min(tiers.length - 1, i + shift))
+  return tiers[next]
+}
+
+function formatYear(depositingMs?: number | null): string | null {
+  if (depositingMs == null || !Number.isFinite(depositingMs)) return null
+  return String(new Date(depositingMs).getFullYear())
+}
+
 export async function fetchPlanningSchemes(
   itmX: number,
   itmY: number,
@@ -85,7 +120,13 @@ export async function fetchPlanningSchemes(
     if (w > strongestWeight) { strongest = f; strongestWeight = w }
   }
   const a = strongest!.attributes
-  const { weight, kind, label } = classifyStatus(a.station_desc)
+  const base = classifyStatus(a.station_desc)
+  const shift = freshnessShift(a.depositing_date)
+  const { weight, kind, label } = applyFreshness(base, shift)
+  const yearStr = formatYear(a.depositing_date)
+  const freshnessSuffix =
+    shift > 0 && yearStr ? ` · הופקדה ב-${yearStr} (טרייה — דירוג שודרג).` :
+    shift < 0 && yearStr ? ` · הופקדה ב-${yearStr} (ישנה — דירוג הופחת).` : ''
 
   // Prefer the plan's own MAVAT page when the API gave us one; otherwise
   // fall back to the viewer at coords.
@@ -97,7 +138,7 @@ export async function fetchPlanningSchemes(
     title: label,
     description:
       `תכנית ${a.pl_number ?? ''} "${a.pl_name ?? ''}" בסטטוס "${a.station_desc ?? '—'}" ` +
-      `חופפת את החלקה (סה"כ ${feats.length} תכניות פעילות באזור).`.trim(),
+      `חופפת את החלקה (סה"כ ${feats.length} תכניות פעילות באזור).${freshnessSuffix}`.trim(),
     url: a.pl_url ?? mavatViewerUrl,
   }
   return { ok: true, signals: [signal], raw: res }

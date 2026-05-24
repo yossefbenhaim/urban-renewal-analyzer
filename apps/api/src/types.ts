@@ -19,6 +19,7 @@ export type SourceName =
   | 'mavat'
   | 'data.gov.il'
   | 'mavat.landuse'
+  | 'data.gov.il.buildingsites'
 
 export type SourceStatus = 'success' | 'partial' | 'failed' | 'skipped'
 
@@ -73,6 +74,7 @@ export type CategoryKey =
   | 'land_use'            // שימושי קרקע
   | 'density'             // יחס שטח מגרש ↔ מס׳ דירות (חדש)
   | 'commercial_mix'      // מורכבות מסחרית בבניין (חדש)
+  | 'city_build_activity' // אתרי בנייה פעילים בעיר (חדש)
 
 export type CommercialLevel = 'none' | 'small' | 'large' | 'unknown'
 

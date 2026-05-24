@@ -8,6 +8,7 @@ export type SourceName =
   | 'mavat'
   | 'data.gov.il'
   | 'mavat.landuse'
+  | 'data.gov.il.buildingsites'
 
 export type CategoryKey =
   | 'planning_schemes'
@@ -17,6 +18,7 @@ export type CategoryKey =
   | 'land_use'
   | 'density'
   | 'commercial_mix'
+  | 'city_build_activity'
 
 export type CommercialLevel = 'none' | 'small' | 'large' | 'unknown'
 

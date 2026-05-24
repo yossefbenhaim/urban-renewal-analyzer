@@ -66,13 +66,23 @@ export async function fetchLandUse(itmX: number, itmY: number): Promise<SourceFe
   }
   const name = best.attributes?.mavat_name ?? 'יעוד לא ידוע'
   const cls = residentialBoost(name)
+
+  // Bigger continuous residential polygon = more room for a multi-building
+  // pinui-binui project. Bump only when the BEST land use is residential.
+  const legalArea = best.attributes?.legal_area
+  const isResidential = cls.kind === 'positive' && /מגורים/.test(name)
+  const areaBoost = isResidential && typeof legalArea === 'number' && legalArea > 5000 ? 2 : 0
+  const areaSuffix = typeof legalArea === 'number' && legalArea > 0
+    ? ` · שטח ייעוד בסביבה: ${Math.round(legalArea).toLocaleString('en-US')} מ"ר.`
+    : ''
+
   const signal: Signal = {
     kind: cls.kind,
-    weight: cls.weight,
+    weight: cls.weight + areaBoost,
     source: 'mavat.landuse',
     category: 'land_use',
     title: 'שימושי קרקע',
-    description: `יעוד הקרקע במקום: "${name.trim()}". ${cls.label}.`,
+    description: `יעוד הקרקע במקום: "${name.trim()}". ${cls.label}.${areaSuffix}`,
     url: landUseUrl,
   }
   return { ok: true, signals: [signal], raw: feats.slice(0, 3) }
