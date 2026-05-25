@@ -124,17 +124,20 @@ export async function geocode(text: string): Promise<GeocodeHit | null> {
 }
 
 // Multi-result variant of geocode() for autocomplete UIs. Returns up to
-// `limit` address-type matches with the label parsed into city/street/number
-// so the client can render a clean dropdown without further parsing.
-//
-// Filters to DescLayerID === 'ADDR_V1' (street + house number) so users
-// never pick a result that the calculator can't process. Cache key is the
-// raw query — different from the single-result `geocode()` cache.
+// `limit` matches across three GovMap result types:
+//   - ADDR_V1          (full address: street + number + city)
+//   - STREET_MID_POINT (street, no number — for "type street name, pick city")
+//   - SETL_MID_POINT   (settlement / city alone — for "type city, pick street")
+// POI/transport results are filtered out — they aren't actionable for the
+// feasibility analyzer. Caller can use `kind` to render rows differently.
+export type SuggestionKind = 'address' | 'street' | 'city'
+
 export interface FreeSearchSuggestion {
-  label: string         // raw GovMap label (e.g. "דיזנגוף 50, תל אביב - יפו")
-  city: string
-  street: string
-  number: string
+  kind: SuggestionKind
+  label: string         // raw GovMap label (e.g. "דיזנגוף 50, תל אביב-יפו")
+  city: string          // always present
+  street: string        // empty for city-only matches
+  number: string        // empty for street-only and city-only matches
 }
 
 const suggestCache = new LRUCache<string, FreeSearchSuggestion[]>({
@@ -142,18 +145,13 @@ const suggestCache = new LRUCache<string, FreeSearchSuggestion[]>({
   ttl: 24 * 60 * 60 * 1000,
 })
 
-// Parse "STREET NUMBER, CITY" or fall back to whitespace splitting. GovMap
-// labels are reasonably consistent — comma separates the city, last token in
-// the first segment is the house number.
+// Parse a label of the form "STREET NUMBER, CITY". Returns the three parts
+// if everything is present; null otherwise. Allows house-number letter
+// suffixes like "12א".
 function parseAddressLabel(label: string): { city: string; street: string; number: string } | null {
-  const trimmed = label.trim()
-  if (!trimmed) return null
-  // Prefer comma split when available (the common case for ADDR_V1).
-  const [head, ...rest] = trimmed.split(',')
+  const [head, ...rest] = label.trim().split(',')
   const city = rest.length > 0 ? rest.join(',').trim() : ''
   const segment = head.trim()
-  // Pull the number off the END of the segment. Allow digits + an optional
-  // letter suffix like "12א".
   const m = segment.match(/^(.+?)\s+([0-9]+[א-ת]?)$/)
   if (!m) return null
   const street = m[1].trim()
@@ -162,7 +160,18 @@ function parseAddressLabel(label: string): { city: string; street: string; numbe
   return { city, street, number }
 }
 
-export async function freeSearchSuggest(text: string, limit = 8): Promise<FreeSearchSuggestion[]> {
+// Parse "STREET, CITY" — no number. Used for STREET_MID_POINT results.
+function parseStreetLabel(label: string): { city: string; street: string } | null {
+  const [head, ...rest] = label.trim().split(',')
+  const street = head.trim()
+  const city = rest.length > 0 ? rest.join(',').trim() : ''
+  if (!street || !city) return null
+  return { city, street }
+}
+
+const KIND_ORDER: Record<SuggestionKind, number> = { address: 0, street: 1, city: 2 }
+
+export async function freeSearchSuggest(text: string, limit = 10): Promise<FreeSearchSuggestion[]> {
   const key = text.trim()
   if (!key) return []
   const cached = suggestCache.get(key)
@@ -176,16 +185,26 @@ export async function freeSearchSuggest(text: string, limit = 8): Promise<FreeSe
   const results = res?.data?.Result ?? []
   const out: FreeSearchSuggestion[] = []
   for (const r of results) {
-    if (r.DescLayerID !== 'ADDR_V1') continue
     const label = r.ResultLable
     if (!label) continue
-    const parsed = parseAddressLabel(label)
-    if (!parsed) continue
-    out.push({ label, ...parsed })
-    if (out.length >= limit) break
+    if (r.DescLayerID === 'ADDR_V1') {
+      const p = parseAddressLabel(label)
+      if (p) out.push({ kind: 'address', label, ...p })
+    } else if (r.DescLayerID === 'STREET_MID_POINT') {
+      const p = parseStreetLabel(label)
+      if (p) out.push({ kind: 'street', label, city: p.city, street: p.street, number: '' })
+    } else if (r.DescLayerID === 'SETL_MID_POINT') {
+      // Label IS the city name (no commas typically).
+      const city = label.trim()
+      if (city) out.push({ kind: 'city', label, city, street: '', number: '' })
+    }
+    if (out.length >= limit * 2) break  // collect extra, sort, then cap
   }
-  suggestCache.set(key, out)
-  return out
+  // Stable sort by kind priority — addresses first, then streets, then cities.
+  out.sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind])
+  const trimmed = out.slice(0, limit)
+  suggestCache.set(key, trimmed)
+  return trimmed
 }
 
 async function identify(

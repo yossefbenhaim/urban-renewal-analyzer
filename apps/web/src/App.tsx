@@ -38,21 +38,39 @@ export function App() {
     setLeadChecked(true)
   }, [])
 
-  // Prefill from URL query (?city=X&street=Y&number=Z). Used when the user
-  // arrives from the Asset Rise landing page after typing an address there.
-  // Auto-triggers the evaluation so the loader starts immediately; the
-  // LeadGate (if not previously accepted) appears as a blocker on top.
+  // Prefill from URL query. Three cases when arriving from Asset Rise:
+  //   1. Full address (?city=X&street=Y&number=Z) — auto-submit so the
+  //      loader starts immediately; LeadGate (if not accepted) layers on top.
+  //   2. Partial — city+street only — prefill both, focus number input.
+  //   3. Partial — city only — prefill city, focus street input.
+  // Partial cases never auto-submit; the user needs to type the missing bit.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const city   = params.get('city')?.trim()
-    const street = params.get('street')?.trim()
-    const number = params.get('number')?.trim()
-    if (!city || !street || !number) return
+    const city   = params.get('city')?.trim()   ?? ''
+    const street = params.get('street')?.trim() ?? ''
+    const number = params.get('number')?.trim() ?? ''
+    if (!city) return
     setAddr({ city, street, building_number: number })
-    // Wait a tick for state to apply, then submit the address form.
+    if (city && street && number) {
+      // Full address — submit immediately.
+      const t = window.setTimeout(() => {
+        document.querySelector<HTMLFormElement>('form[data-evaluate-form]')?.requestSubmit()
+      }, 80)
+      return () => window.clearTimeout(t)
+    }
+    // Partial — focus the next empty field so the user knows what to fill.
+    // AddressPicker inputs don't carry `name=`, so we identify them by their
+    // unique Hebrew placeholders.
     const t = window.setTimeout(() => {
-      document.querySelector<HTMLFormElement>('form[data-evaluate-form]')?.requestSubmit()
-    }, 80)
+      const placeholder = !street
+        ? 'הקלד שם רחוב…'
+        : !number ? 'מספר הבניין'
+        : null
+      if (!placeholder) return
+      const el = Array.from(document.querySelectorAll<HTMLInputElement>('input'))
+        .find(i => i.placeholder === placeholder)
+      el?.focus()
+    }, 120)
     return () => window.clearTimeout(t)
   }, [])
 
