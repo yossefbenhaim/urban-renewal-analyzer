@@ -1,6 +1,6 @@
 import express from 'express'
 import { evaluateHandler } from './routes/evaluate.js'
-import { citiesHandler, streetsHandler } from './routes/address.js'
+import { citiesHandler, streetsHandler, getAllStreetsIndex } from './routes/address.js'
 import { validateAddressHandler } from './routes/validate.js'
 import { freeSearchHandler } from './routes/freesearch.js'
 import { leadHandler } from './routes/lead.js'
@@ -36,4 +36,11 @@ app.post('/api/lead', leadHandler)
 const port = Number(process.env.PORT ?? 3001)
 app.listen(port, () => {
   console.log(`[feasibility] api listening on :${port}`)
+  // Kick off the global streets index in the background. The first real
+  // /api/freesearch request lands warm; without this, the first user pays
+  // the ~15-20s CKAN sweep. Failure is silent — aggregator falls back to
+  // GovMap + cities.
+  void getAllStreetsIndex().catch(err => {
+    console.warn('[streets-index] warmup failed:', err?.message)
+  })
 })

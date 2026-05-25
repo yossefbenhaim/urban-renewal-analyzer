@@ -62,7 +62,7 @@ async function ckanFetchAll(
 let citiesCache: { data: NamedEntry[]; at: number } | null = null
 let citiesInFlight: Promise<NamedEntry[]> | null = null
 
-async function getCities(): Promise<NamedEntry[]> {
+export async function getCities(): Promise<NamedEntry[]> {
   if (citiesCache && Date.now() - citiesCache.at < TTL_MS) return citiesCache.data
   if (citiesInFlight) return citiesInFlight
   citiesInFlight = (async () => {
@@ -131,7 +131,7 @@ async function getStreetsForCity(cityCode: string): Promise<NamedEntry[]> {
 // `q` requires whole tokens ("חי" matches nothing), so we substring-filter the
 // cached list in memory.
 
-function scoreAndRank(items: NamedEntry[], query: string, max: number): NamedEntry[] {
+export function scoreAndRank(items: NamedEntry[], query: string, max: number): NamedEntry[] {
   const q = query.trim()
   if (!q) return items.slice(0, max)
   const tokens = q.split(/\s+/).filter(Boolean)
@@ -176,4 +176,107 @@ export async function streetsHandler(req: Request, res: Response) {
     console.error('[streets]', e?.message)
     res.status(500).json({ error: e?.message ?? 'streets error' })
   }
+}
+
+// ─── Global streets index — for cross-city smart autocomplete ───────────
+//
+// The per-city `getStreetsForCity` above is great when we already know the
+// city. For "user typed one word, give me streets across ALL cities" we need
+// a flat list. This pulls the entire CKAN STREETS_RESOURCE in one paginated
+// sweep (~30 pages × 1000 = ~30K rows, ~3-5MB in memory) and joins city
+// names through the cities cache.
+//
+// Lazy: built on first request, cached for 24h, in-flight dedup. Boot can
+// warm it with `void getAllStreetsIndex()` so the first real user gets a
+// hot cache.
+
+export interface StreetIndexEntry {
+  street: string
+  city: string
+  cityCode: string
+}
+
+let streetsIndexCache: { data: StreetIndexEntry[]; at: number } | null = null
+let streetsIndexInFlight: Promise<StreetIndexEntry[]> | null = null
+
+export async function getAllStreetsIndex(): Promise<StreetIndexEntry[]> {
+  if (streetsIndexCache && Date.now() - streetsIndexCache.at < TTL_MS) {
+    return streetsIndexCache.data
+  }
+  if (streetsIndexInFlight) return streetsIndexInFlight
+
+  streetsIndexInFlight = (async () => {
+    try {
+      const cities = await getCities()
+      const cityByCode = new Map<string, string>()
+      for (const c of cities) cityByCode.set(c.code, c.name)
+
+      // Pull the full streets table — same paginator as the per-city flow,
+      // just without a `filters` constraint so CKAN returns every row.
+      const out: StreetIndexEntry[] = []
+      let offset = 0
+      const HARD_CAP = 100_000  // safety — well above the ~30K we expect
+      while (offset < HARD_CAP) {
+        const params = new URLSearchParams({
+          resource_id: STREETS_RESOURCE,
+          limit:  String(PAGE),
+          offset: String(offset),
+          fields: 'שם_רחוב,סמל_רחוב,סמל_ישוב',
+        })
+        const res = await fetchJson<CkanResp>(
+          `${CKAN_URL}?${params.toString()}`,
+          { timeoutMs: 15_000, retries: 2 },
+        )
+        const rows = res?.result?.records ?? []
+        if (rows.length === 0) break
+        for (const r of rows) {
+          const street = String(r['שם_רחוב'] ?? '').trim()
+          const cityCode = String(r['סמל_ישוב'] ?? '').trim()
+          if (!street || !cityCode) continue
+          if (street === 'לא רלוונטי' || street === 'ללא שם') continue
+          const city = cityByCode.get(cityCode)
+          if (!city) continue
+          out.push({ street, city, cityCode })
+        }
+        offset += rows.length
+        if (rows.length < PAGE) break
+      }
+      if (out.length > 0) streetsIndexCache = { data: out, at: Date.now() }
+      console.log(`[streets-index] loaded ${out.length} rows`)
+      return out
+    } finally {
+      streetsIndexInFlight = null
+    }
+  })()
+  return streetsIndexInFlight
+}
+
+// Substring search across the global index. Returns top `max` matches —
+// prefix on street name first, then word-start, then contains. Optionally
+// constrained to a single city (when query parsing identified one).
+export function searchStreetsIndex(
+  index: StreetIndexEntry[],
+  query: string,
+  max: number,
+  cityFilter?: string,
+): StreetIndexEntry[] {
+  const q = query.trim()
+  if (!q) return []
+  const lcCity = cityFilter?.trim().toLowerCase() ?? null
+  const prefix: StreetIndexEntry[] = []
+  const wordStart: StreetIndexEntry[] = []
+  const contains: StreetIndexEntry[] = []
+  for (const e of index) {
+    if (lcCity && e.city.toLowerCase() !== lcCity) continue
+    const n = e.street
+    if (n.startsWith(q)) {
+      prefix.push(e)
+      if (prefix.length >= max) break
+    } else if (n.includes(' ' + q)) {
+      wordStart.push(e)
+    } else if (n.includes(q)) {
+      contains.push(e)
+    }
+  }
+  return [...prefix, ...wordStart, ...contains].slice(0, max)
 }
