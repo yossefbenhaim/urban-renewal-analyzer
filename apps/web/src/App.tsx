@@ -38,6 +38,24 @@ export function App() {
     setLeadChecked(true)
   }, [])
 
+  // Prefill from URL query (?city=X&street=Y&number=Z). Used when the user
+  // arrives from the Asset Rise landing page after typing an address there.
+  // Auto-triggers the evaluation so the loader starts immediately; the
+  // LeadGate (if not previously accepted) appears as a blocker on top.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const city   = params.get('city')?.trim()
+    const street = params.get('street')?.trim()
+    const number = params.get('number')?.trim()
+    if (!city || !street || !number) return
+    setAddr({ city, street, building_number: number })
+    // Wait a tick for state to apply, then submit the address form.
+    const t = window.setTimeout(() => {
+      document.querySelector<HTMLFormElement>('form[data-evaluate-form]')?.requestSubmit()
+    }, 80)
+    return () => window.clearTimeout(t)
+  }, [])
+
   const isResultMode = busy || report !== null
 
   async function onEvaluate(e: React.FormEvent) {
@@ -122,7 +140,7 @@ export function App() {
         {!isResultMode && (
           <>
             <Hero />
-            <form onSubmit={onEvaluate} className="mt-4 bg-white rounded-sc-card border border-sc-border shadow-sm p-3 sm:p-4">
+            <form onSubmit={onEvaluate} data-evaluate-form className="mt-4 bg-white rounded-sc-card border border-sc-border shadow-sm p-3 sm:p-4">
               <AddressPicker value={addr} onChange={setAddr} disabled={busy} />
 
               {/* Three optional details that materially change the score:
