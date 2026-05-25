@@ -9,6 +9,9 @@ export type SourceName =
   | 'data.gov.il'
   | 'mavat.landuse'
   | 'data.gov.il.buildingsites'
+  | 'municipal_web'
+
+export type ValidationStatus = 'confirmed' | 'contradicted' | 'unverified'
 
 export type CategoryKey =
   | 'planning_schemes'
@@ -31,6 +34,17 @@ export interface Signal {
   source: SourceName
   category?: CategoryKey
   url?: string
+  validation?: ValidationStatus
+}
+
+export interface ValidationSummary {
+  confidence: number
+  confirmed_count: number
+  contradicted_count: number
+  unverified_count: number
+  notes: string[]
+  model: string
+  cached: boolean
 }
 
 export interface Category {
@@ -109,6 +123,7 @@ export interface EvaluateResponse {
   expected_time_years: { min: number; max: number }
   recommendations: string[]
   sources_used: SourceResult[]
+  validation?: ValidationSummary
   generated_at: string
   disclaimer: string
 }

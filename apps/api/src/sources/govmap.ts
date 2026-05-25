@@ -123,6 +123,71 @@ export async function geocode(text: string): Promise<GeocodeHit | null> {
   return hit
 }
 
+// Multi-result variant of geocode() for autocomplete UIs. Returns up to
+// `limit` address-type matches with the label parsed into city/street/number
+// so the client can render a clean dropdown without further parsing.
+//
+// Filters to DescLayerID === 'ADDR_V1' (street + house number) so users
+// never pick a result that the calculator can't process. Cache key is the
+// raw query — different from the single-result `geocode()` cache.
+export interface FreeSearchSuggestion {
+  label: string         // raw GovMap label (e.g. "דיזנגוף 50, תל אביב - יפו")
+  city: string
+  street: string
+  number: string
+}
+
+const suggestCache = new LRUCache<string, FreeSearchSuggestion[]>({
+  max: 500,
+  ttl: 24 * 60 * 60 * 1000,
+})
+
+// Parse "STREET NUMBER, CITY" or fall back to whitespace splitting. GovMap
+// labels are reasonably consistent — comma separates the city, last token in
+// the first segment is the house number.
+function parseAddressLabel(label: string): { city: string; street: string; number: string } | null {
+  const trimmed = label.trim()
+  if (!trimmed) return null
+  // Prefer comma split when available (the common case for ADDR_V1).
+  const [head, ...rest] = trimmed.split(',')
+  const city = rest.length > 0 ? rest.join(',').trim() : ''
+  const segment = head.trim()
+  // Pull the number off the END of the segment. Allow digits + an optional
+  // letter suffix like "12א".
+  const m = segment.match(/^(.+?)\s+([0-9]+[א-ת]?)$/)
+  if (!m) return null
+  const street = m[1].trim()
+  const number = m[2].trim()
+  if (!street || !number || !city) return null
+  return { city, street, number }
+}
+
+export async function freeSearchSuggest(text: string, limit = 8): Promise<FreeSearchSuggestion[]> {
+  const key = text.trim()
+  if (!key) return []
+  const cached = suggestCache.get(key)
+  if (cached) return cached
+  const res = await fetchJson<FreeSearchResponse>(FREE_SEARCH_URL, {
+    method: 'POST',
+    body: { keyword: key, LstResult: '' },
+    timeoutMs: 5000,
+    retries: 1,
+  })
+  const results = res?.data?.Result ?? []
+  const out: FreeSearchSuggestion[] = []
+  for (const r of results) {
+    if (r.DescLayerID !== 'ADDR_V1') continue
+    const label = r.ResultLable
+    if (!label) continue
+    const parsed = parseAddressLabel(label)
+    if (!parsed) continue
+    out.push({ label, ...parsed })
+    if (out.length >= limit) break
+  }
+  suggestCache.set(key, out)
+  return out
+}
+
 async function identify(
   itmX: number,
   itmY: number,

@@ -12,6 +12,7 @@ export interface Signal {
   source: SourceName        // which adapter produced this signal
   category?: CategoryKey    // which UI category this rolls up into
   url?: string              // public URL where the user can verify the underlying source data
+  validation?: ValidationStatus  // LLM cross-check verdict (annotated by engine/validation.ts)
 }
 
 export type SourceName =
@@ -20,6 +21,12 @@ export type SourceName =
   | 'data.gov.il'
   | 'mavat.landuse'
   | 'data.gov.il.buildingsites'
+  | 'municipal_web'         // Firecrawl scrape + Claude extraction (city policy/projects)
+
+// LLM cross-check verdict on a Signal. Annotated by engine/validation.ts.
+// Does NOT change the deterministic rubric score — informational metadata
+// only, surfaced as badges in the UI.
+export type ValidationStatus = 'confirmed' | 'contradicted' | 'unverified'
 
 export type SourceStatus = 'success' | 'partial' | 'failed' | 'skipped'
 
@@ -137,8 +144,22 @@ export interface EvaluateResponse {
   expected_time_years: { min: number; max: number }
   recommendations: string[] // 5-7 Hebrew action items
   sources_used: SourceResult[]
+  validation?: ValidationSummary  // overall cross-check verdict from engine/validation.ts
   generated_at: string      // ISO timestamp
   disclaimer: string
+}
+
+// Output of engine/validation.ts. Confidence is a 0-100 data-quality score
+// derived from how many signals were confirmed by independent sources vs
+// contradicted; it does NOT change the rubric score.
+export interface ValidationSummary {
+  confidence: number              // 0-100 — fraction of signals that cross-check
+  confirmed_count: number
+  contradicted_count: number
+  unverified_count: number
+  notes: string[]                 // 1-3 Hebrew bullets the UI can render under the score
+  model: string                   // which Claude model produced this verdict (for debugging)
+  cached: boolean                 // true when the verdict came from disk cache
 }
 
 // Internal: every source adapter returns this shape so the orchestrator can

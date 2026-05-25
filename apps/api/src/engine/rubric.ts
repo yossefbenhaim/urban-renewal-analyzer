@@ -454,6 +454,7 @@ function sourceFailedNote(name: SourceName): string {
     case 'mavat':                      return 'מאגר התכניות של מינהל התכנון לא הגיב בזמן.'
     case 'data.gov.il':                return 'data.gov.il לא הגיב בזמן (CKAN איטי / 5xx).'
     case 'data.gov.il.buildingsites':  return 'רשימת אתרי הבנייה של משרד העבודה לא הגיבה בזמן.'
+    case 'municipal_web':              return 'אתר העירייה לא נסרק (Firecrawl/LLM נכשל) — מקור משלים אינו זמין בריצה זו.'
   }
 }
 
@@ -464,5 +465,6 @@ function sourceZeroNote(name: SourceName): string {
     case 'mavat':                      return 'אין תכניות פעילות מתאימות באזור.'
     case 'data.gov.il':                return 'העיר לא ברשימת ההתחדשות הרשמית.'
     case 'data.gov.il.buildingsites':  return 'אין אתרי בנייה פעילים בעיר ברגע זה.'
+    case 'municipal_web':              return 'אתר העירייה נסרק אך לא נמצאו ממצאים שמשפיעים על הציון.'
   }
 }

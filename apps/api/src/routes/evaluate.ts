@@ -17,12 +17,14 @@ import { fetchPlanningSchemes } from '../sources/mavat.js'
 import { fetchCityUrbanRenewal } from '../sources/datagov.js'
 import { fetchLandUse } from '../sources/landuse.js'
 import { fetchBuildingSites } from '../sources/buildingsites.js'
+import { fetchMunicipalWeb } from '../sources/municipal_web.js'
 import { bucketize, rankSignals } from '../engine/score.js'
 import {
   ageCap, expectedTimeYears, recommendTrack, recommendations,
   singleBuildingFeasible, summaryHe,
 } from '../engine/recommend.js'
 import { evaluateRubric } from '../engine/rubric.js'
+import { crossValidate } from '../engine/validation.js'
 import { reportCache, cacheKey } from '../lib/cache.js'
 import type {
   EvaluateResponse, ResolvedAddress, Signal, SourceFetchResult,
@@ -98,16 +100,24 @@ export async function evaluateHandler(req: Request, res: Response) {
   const itmY = foundationAddr.itm_y!
 
   // 2. Tier-2 fan-out.
-  const [renewalLayer, planningSchemes, cityRenewal, landUse, buildingSites] = await Promise.all([
+  //
+  // municipalWeb joins the fan-out and runs in parallel — its 7-day disk
+  // cache means warm calls return in ~10ms, and even cold calls only
+  // add a few seconds because internally they scrape sequentially per
+  // city. It contributes signals to `municipal_policy` / `projects_in_city`
+  // categories alongside the existing adapters; the rubric picks the
+  // strongest signal per category regardless of source.
+  const [renewalLayer, planningSchemes, cityRenewal, landUse, buildingSites, municipalWeb] = await Promise.all([
     timed(fetchUrbanRenewalLayer(itmX, itmY)),
     timed(fetchPlanningSchemes(itmX, itmY)),
     timed(fetchCityUrbanRenewal(city)),
     timed(fetchLandUse(itmX, itmY)),
     timed(fetchBuildingSites(city)),
+    timed(fetchMunicipalWeb(city)),
   ])
 
   // 3. Aggregate.
-  const all = [foundation, renewalLayer, planningSchemes, cityRenewal, landUse, buildingSites]
+  const all = [foundation, renewalLayer, planningSchemes, cityRenewal, landUse, buildingSites, municipalWeb]
   const signals: Signal[] = []
   for (const r of all) if (r.result?.signals) signals.push(...r.result.signals)
   const ranked = rankSignals(signals)
@@ -147,6 +157,7 @@ export async function evaluateHandler(req: Request, res: Response) {
     { name: 'data.gov.il',                run: cityRenewal     },
     { name: 'mavat.landuse',              run: landUse         },
     { name: 'data.gov.il.buildingsites',  run: buildingSites   },
+    { name: 'municipal_web',              run: municipalWeb    },
   ]
   // Collapse the two govmap rows into one for the user-facing footer.
   const sourcesByName = new Map<SourceName, SourceResult>()
@@ -175,11 +186,18 @@ export async function evaluateHandler(req: Request, res: Response) {
   // `source_contributions` can flag failed sources accurately.
   const rubric2 = evaluateRubric(ranked, { lot_sqm: address.lot_sqm }, sourcesUsed, userInputs)
 
+  // 4. Cross-validation (informational, doesn't change the score).
+  //    Sonnet 4.6 with temperature 0 + disk cache → same signals
+  //    always produce the same verdict. If the LLM call fails or the
+  //    key is missing, `summary` is null and signals stay unannotated;
+  //    the rest of the response is unaffected.
+  const { summary: validation, annotated } = await crossValidate(address, ranked)
+
   const response: EvaluateResponse = {
     address,
     score,
     bucket,
-    signals: ranked,
+    signals: annotated,
     categories: rubric2.categories,
     source_contributions: rubric2.source_contributions,
     summary_he: summaryHe(engineCtx),
@@ -188,6 +206,7 @@ export async function evaluateHandler(req: Request, res: Response) {
     expected_time_years: expectedTimeYears(track),
     recommendations: recommendations(engineCtx, track),
     sources_used: sourcesUsed,
+    validation: validation ?? undefined,
     generated_at: new Date().toISOString(),
     disclaimer: DISCLAIMER,
   }

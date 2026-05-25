@@ -9,10 +9,18 @@ services:
       - NODE_ENV=production
       - PORT=3001
       - LEADS_FILE=/data/leads.jsonl
+      # LLM + Firecrawl pipeline. Keys come from Coolify's env config —
+      # DO NOT commit them. If either is unset the new municipal_web
+      # adapter + cross-validation step degrade to a no-op outcome
+      # instead of breaking the evaluate request.
+      - LLM_CACHE_DIR=/data/llm-cache
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY}
+      - URA_LLM_MODEL=${URA_LLM_MODEL:-claude-sonnet-4-6}
     volumes:
-      # Append-only lead log — survives container restarts so the Silver
-      # Castle CRM can ingest it later. Host path lives in the Coolify
-      # working dir alongside the repo.
+      # Append-only lead log + LLM/Firecrawl disk cache (7-day TTL).
+      # Both survive container restarts so deploys don't lose cached
+      # scrapes / extractions.
       - ura-data:/data
     networks:
       - ura

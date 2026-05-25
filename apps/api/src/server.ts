@@ -2,6 +2,7 @@ import express from 'express'
 import { evaluateHandler } from './routes/evaluate.js'
 import { citiesHandler, streetsHandler } from './routes/address.js'
 import { validateAddressHandler } from './routes/validate.js'
+import { freeSearchHandler } from './routes/freesearch.js'
 import { leadHandler } from './routes/lead.js'
 
 const app = express()
@@ -28,6 +29,7 @@ app.get('/api/health', (_req, res) => {
 app.get('/api/cities', citiesHandler)
 app.get('/api/streets', streetsHandler)
 app.get('/api/validate-address', validateAddressHandler)
+app.get('/api/freesearch', freeSearchHandler)
 app.post('/api/evaluate', evaluateHandler)
 app.post('/api/lead', leadHandler)
 
